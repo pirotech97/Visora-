@@ -1,0 +1,401 @@
+@import "tailwindcss";
+
+:root {
+  /* ==========================================================================
+     JETONS DE COULEURS VISORA (Variables sémantiques claires par défaut)
+     ========================================================================== */
+  --surface: #ffffff;
+  --surface-elevee: #f8fafc;
+  --surface-subtile: #f1f5f9;
+  --bordure: #e2e8f0;
+  --bordure-fine: rgba(226, 232, 240, 0.9);
+  --texte: #0f172a;
+  --texte-discret: #64748b;
+  --texte-tres-discret: #94a3b8;
+
+  /* Couleur principale Visora (accent) */
+  --accent: #2563eb;
+  --accent-survol: #1d4ed8;
+  --accent-actif: #1e40af;
+  --accent-texte: #ffffff;
+  --accent-doux: #eff6ff;
+
+  /* Avertissement (crédits bas) */
+  --avertissement: #d97706;
+  --avertissement-fond: rgba(254, 243, 199, 0.85);
+  --avertissement-texte: #92400e;
+  --avertissement-bordure: rgba(252, 211, 77, 0.6);
+  --avertissement-zero-fond: rgba(254, 235, 200, 0.95);
+
+  /* Danger (solde insuffisant pour le fichier) */
+  --danger: #dc2626;
+  --danger-fond: rgba(254, 242, 242, 0.92);
+  --danger-texte: #991b1b;
+  --danger-bordure: rgba(252, 165, 165, 0.7);
+
+  /* Hauteur dynamique avec repli */
+  --vvh: 100dvh;
+}
+
+html,
+body {
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#root {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   THÈME SOMBRE : SYSTÈME ET FORÇAGE EXPLICITE (.dark ou data-theme="dark")
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #121826;
+    --surface-elevee: #1a2234;
+    --surface-subtile: #172033;
+    --fond-page: #0b0f19;
+    --bordure: #26334a;
+    --bordure-fine: rgba(51, 65, 85, 0.85);
+    --texte: #f8fafc;
+    --texte-discret: #94a3b8;
+    --texte-tres-discret: #64748b;
+
+    --accent: #3b82f6;
+    --accent-survol: #60a5fa;
+    --accent-actif: #2563eb;
+    --accent-texte: #ffffff;
+    --accent-doux: rgba(59, 130, 246, 0.2);
+
+    --avertissement: #f59e0b;
+    --avertissement-fond: rgba(120, 53, 15, 0.42);
+    --avertissement-texte: #fde68a;
+    --avertissement-bordure: rgba(217, 119, 6, 0.5);
+    --avertissement-zero-fond: rgba(146, 64, 14, 0.6);
+
+    --danger: #ef4444;
+    --danger-fond: rgba(127, 29, 29, 0.4);
+    --danger-texte: #fecaca;
+    --danger-bordure: rgba(239, 68, 68, 0.5);
+  }
+}
+
+:root[data-theme="dark"],
+.dark {
+  --surface: #121826;
+  --surface-elevee: #1a2234;
+  --surface-subtile: #172033;
+  --fond-page: #0b0f19;
+  --bordure: #26334a;
+  --bordure-fine: rgba(51, 65, 85, 0.85);
+  --texte: #f8fafc;
+  --texte-discret: #94a3b8;
+  --texte-tres-discret: #64748b;
+
+  --accent: #3b82f6;
+  --accent-survol: #60a5fa;
+  --accent-actif: #2563eb;
+  --accent-texte: #ffffff;
+  --accent-doux: rgba(59, 130, 246, 0.2);
+
+  --avertissement: #f59e0b;
+  --avertissement-fond: rgba(120, 53, 15, 0.42);
+  --avertissement-texte: #fde68a;
+  --avertissement-bordure: rgba(217, 119, 6, 0.5);
+  --avertissement-zero-fond: rgba(146, 64, 14, 0.6);
+
+  --danger: #ef4444;
+  --danger-fond: rgba(127, 29, 29, 0.4);
+  --danger-texte: #fecaca;
+  --danger-bordure: rgba(239, 68, 68, 0.5);
+}
+
+/* ==========================================================================
+   DIMENSIONS DU BOUTON SELON LE POINTEUR (Tactile: 44px, Souris: 40px)
+   ========================================================================== */
+.composer-action-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+@media (pointer: coarse) {
+  .composer-action-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ==========================================================================
+   ADAPTATION PAYSAGE TÉLÉPHONE (hauteur < 500px)
+   ========================================================================== */
+@media (max-height: 500px) {
+  .composer-helper-text {
+    display: none !important;
+  }
+  .composer-alert-banner {
+    min-height: 40px !important;
+    height: 40px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+  }
+  .composer-textarea {
+    max-height: 64px !important;
+  }
+}
+
+/* ==========================================================================
+   RESPECT DE PREFERS-REDUCED-MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .composer-reduced-motion,
+  .composer-reduced-motion * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   ÉCRAN D'ACCUEIL CHAT VIDE
+   ========================================================================== */
+.empty-chat-card {
+  min-height: 64px;
+  height: 64px;
+  transition: all 0.15s ease-in-out;
+}
+
+/* Effet de survol uniquement avec une souris */
+@media (hover: hover) and (pointer: fine) {
+  .empty-chat-card:not([aria-disabled="true"]):hover {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* Sur écran bas (hauteur de moins de 600 px), masquer le sous-titre et réduire les cartes à 56 px */
+@media (max-height: 599px) {
+  .empty-chat-subtitle {
+    display: none !important;
+  }
+  .empty-chat-card {
+    min-height: 56px !important;
+    height: 56px !important;
+  }
+  .empty-chat-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+}
+
+/* ==========================================================================
+   STYLE SOMBRE GLOBAL : SURFACES, CONTRASTES ET COMPOSANTS
+   ========================================================================== */
+.dark body {
+  background-color: var(--fond-page);
+  color: var(--texte);
+}
+
+.dark #root {
+  background-color: var(--fond-page);
+}
+
+/* Surfaces principales */
+.dark .bg-white {
+  background-color: var(--surface);
+  color: var(--texte);
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/80 {
+  background-color: var(--surface-subtile);
+}
+
+.dark .bg-slate-100 {
+  background-color: var(--surface-elevee);
+}
+
+/* Bordures sombres */
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-200\/60,
+.dark .border-slate-200\/70,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/90 {
+  border-color: var(--bordure);
+}
+
+/* Textes et hiérarchie typographique sombre */
+.dark .text-slate-900,
+.dark .text-slate-800 {
+  color: var(--texte);
+}
+
+.dark .text-slate-700,
+.dark .text-slate-600 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-500 {
+  color: var(--texte-discret);
+}
+
+.dark .text-slate-400 {
+  color: var(--texte-tres-discret);
+}
+
+/* Textarea & Inputs */
+.dark textarea,
+.dark input[type="text"],
+.dark input[type="password"],
+.dark input[type="email"] {
+  color: var(--texte);
+}
+
+.dark textarea::placeholder,
+.dark input::placeholder {
+  color: var(--texte-tres-discret);
+}
+
+/* Survols */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover {
+  background-color: var(--surface-elevee);
+}
+
+.dark .hover\:bg-slate-200\/60:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Bande d'alerte des crédits et avertissements (jaune-ambre sur fond brun translucide) */
+.dark .bg-amber-50,
+.dark .bg-amber-50\/90,
+.dark .bg-amber-100,
+.dark .bg-amber-100\/90,
+.dark .bg-amber-100\/95 {
+  background-color: var(--avertissement-fond) !important;
+  color: var(--avertissement-texte) !important;
+  border-color: var(--avertissement-bordure) !important;
+}
+
+.dark .text-amber-800,
+.dark .text-amber-900,
+.dark .text-amber-950 {
+  color: var(--avertissement-texte) !important;
+}
+
+.dark .text-amber-600,
+.dark .text-amber-700 {
+  color: #fbbf24 !important;
+}
+
+.dark .border-amber-200,
+.dark .border-amber-200\/60,
+.dark .border-amber-200\/70,
+.dark .border-amber-200\/80,
+.dark .border-amber-200\/90 {
+  border-color: var(--avertissement-bordure) !important;
+}
+
+.dark .hover\:bg-amber-100:hover,
+.dark .hover\:bg-amber-200:hover,
+.dark .hover\:bg-amber-200\/40:hover,
+.dark .hover\:bg-amber-200\/50:hover {
+  background-color: rgba(245, 158, 11, 0.25) !important;
+}
+
+/* Messages d'erreur et pastilles de danger */
+.dark .bg-red-50,
+.dark .bg-rose-50 {
+  background-color: var(--danger-fond) !important;
+  color: var(--danger-texte) !important;
+  border-color: var(--danger-bordure) !important;
+}
+
+.dark .text-red-700,
+.dark .text-red-800,
+.dark .text-red-900 {
+  color: var(--danger-texte) !important;
+}
+
+.dark .border-red-200,
+.dark .border-red-300 {
+  border-color: var(--danger-bordure) !important;
+}
+
+/* Pastilles et bannières bleues (Accent doux) */
+.dark .bg-blue-50,
+.dark .bg-blue-50\/70,
+.dark .bg-blue-50\/80,
+.dark .bg-blue-50\/90 {
+  background-color: var(--accent-doux) !important;
+  color: #93c5fd !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+.dark .text-blue-700,
+.dark .text-blue-800,
+.dark .text-blue-900 {
+  color: #93c5fd !important;
+}
+
+.dark .bg-blue-100,
+.dark .bg-blue-100\/70,
+.dark .bg-blue-100\/90 {
+  background-color: rgba(37, 99, 235, 0.35) !important;
+  color: #bfdbfe !important;
+}
+
+/* Pastilles et bannières vertes (WhatsApp / Bienvenue) */
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/70,
+.dark .bg-emerald-50\/80 {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  color: #a7f3d0 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+.dark .text-emerald-950,
+.dark .text-emerald-900,
+.dark .text-emerald-800 {
+  color: #a7f3d0 !important;
+}
+
+.dark .text-emerald-600,
+.dark .text-emerald-700 {
+  color: #34d399 !important;
+}
+
+.dark .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.3) !important;
+  color: #a7f3d0 !important;
+}
+
+/* Cartes d'accueil du chat vide en mode sombre */
+.dark .empty-chat-card {
+  background-color: var(--surface) !important;
+  border-color: var(--bordure) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dark .empty-chat-card:not([aria-disabled="true"]):hover {
+    background-color: var(--surface-elevee) !important;
+    border-color: #475569 !important;
+  }
+}
+
+

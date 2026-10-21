@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="foldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#93c5fd" />
+      <stop offset="100%" stop-color="#bfdbfe" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#1e3a8a" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Document back shadow and sheet -->
+  <g filter="url(#shadow)">
+    <!-- Main document page -->
+    <path d="M140 100 H300 L372 172 V412 H140 Z" fill="#ffffff" rx="8" />
+    <!-- Folded corner -->
+    <path d="M300 100 V172 H372 Z" fill="url(#foldGrad)" />
+  </g>
+
+  <!-- Document horizontal lines representing extracted content -->
+  <rect x="180" y="210" width="120" height="18" rx="9" fill="#2563eb" />
+  <rect x="180" y="250" width="152" height="14" rx="7" fill="#93c5fd" />
+  <rect x="180" y="280" width="136" height="14" rx="7" fill="#93c5fd" />
+  <rect x="180" y="310" width="144" height="14" rx="7" fill="#93c5fd" />
+
+  <!-- Badge for Word / Docx with "W" in bottom right -->
+  <g transform="translate(290, 310)" filter="url(#shadow)">
+    <rect width="110" height="90" rx="18" fill="#1e40af" />
+    <text x="55" y="62" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="900" fill="#ffffff" text-anchor="middle">W</text>
+  </g>
+</svg>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr" class="h-full bg-slate-50 overflow-hidden">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Visora</title>
+    <meta name="description" content="Assistant de conversion de documents (PDF ou photo) en fichiers Word (.docx) fidèles mot pour mot." />
+    <meta property="og:title" content="Visora" />
+    <meta property="og:description" content="Assistant de conversion de documents (PDF ou photo) en fichiers Word (.docx) fidèles mot pour mot." />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Visora" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      (function() {
+        // Suppress benign Vite HMR WebSocket error in AI Studio iframe sandbox
+        const OriginalWebSocket = window.WebSocket;
+        if (OriginalWebSocket) {
+          window.WebSocket = function(url, protocols) {
+            const ws = new OriginalWebSocket(url, protocols);
+            if (typeof url === 'string' && (url.includes('vite') || url.includes('24678') || url.includes('@vite') || url.includes('token='))) {
+              const origAddEventListener = ws.addEventListener.bind(ws);
+              ws.addEventListener = function(type, listener, options) {
+                if (type === 'close') {
+                  const safeListener = function(event) {
+                    try {
+                      Object.defineProperty(event, 'wasClean', { value: true, configurable: true });
+                      listener.call(this, event);
+                    } catch (e) {
+                      // Silently swallow Vite HMR closure error
+                    }
+                  };
+                  return origAddEventListener(type, safeListener, options);
+                }
+                return origAddEventListener(type, listener, options);
+              };
+            }
+            return ws;
+          };
+          window.WebSocket.prototype = OriginalWebSocket.prototype;
+          window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+          window.WebSocket.OPEN = OriginalWebSocket.OPEN;
+          window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
+          window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
+        }
+
+        const isWsErr = (msg) => typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('ws://') || msg.includes('wss://'));
+
+        const origOnError = window.onerror;
+        window.onerror = function(msg, url, line, col, err) {
+          if (isWsErr(msg) || (err && isWsErr(err.message))) {
+            return true;
+          }
+          if (origOnError) return origOnError.apply(this, arguments);
+          return false;
+        };
+
+        window.addEventListener('error', function(event) {
+          if (isWsErr(event.message) || (event.error && isWsErr(event.error.message))) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && isWsErr(String(event.reason))) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+
+      // Synchronisation immédiate du thème
+      (function() {
+        try {
+          const stored = localStorage.getItem('visora_theme');
+          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (stored === 'dark' || (!stored && prefersDark) || (stored === 'auto' && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          if (stored) {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="h-full overflow-hidden text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900">
+    <div id="root" class="h-full overflow-hidden"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,6 @@
+{
+  "name": "Visora",
+  "description": "Assistant de conversion de documents (PDF ou photo) en fichiers Word (.docx) fidèles mot pour mot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
