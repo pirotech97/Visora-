@@ -25,6 +25,8 @@ interface SourcePhotoItem {
   name: string;
 }
 
+export type QualityTier = 'standard' | 'haute' | 'premium';
+
 interface CreateImageModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,7 +39,7 @@ interface CreateImageModalProps {
   initialPhotoUrl?: string;
   initialPrompt?: string;
   initialFormat?: string;
-  initialResolution?: '1K' | '2K';
+  initialQuality?: QualityTier;
 }
 
 const TAB_CONFIG: { mode: ImageTabMode; label: string; placeholder: string; requiresPhoto?: boolean }[] = [
@@ -54,7 +56,8 @@ const TAB_CONFIG: { mode: ImageTabMode; label: string; placeholder: string; requ
   {
     mode: 'fiche_produit',
     label: 'Fiche produit',
-    placeholder: 'Ex : Présentation épurée d’un flacon de parfum sur fond marbre blanc avec éclairage studio doux…'
+    placeholder: 'Ex : Présentation épurée d’un flacon de parfum sur fond marbre blanc avec éclairage studio doux…',
+    requiresPhoto: true
   },
   {
     mode: 'modifier',
@@ -86,12 +89,12 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
   initialPhotoUrl,
   initialPrompt = '',
   initialFormat = '1:1',
-  initialResolution = '1K'
+  initialQuality = 'standard'
 }) => {
   const [activeTab, setActiveTab] = useState<ImageTabMode>(initialMode);
   const [prompt, setPrompt] = useState(initialPrompt);
   const [format, setFormat] = useState(initialFormat);
-  const [resolution, setResolution] = useState<'1K' | '2K'>(initialResolution);
+  const [selectedQuality, setSelectedQuality] = useState<QualityTier>(initialQuality);
   const [photos, setPhotos] = useState<SourcePhotoItem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -99,13 +102,19 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Dans l'onglet "Fiche produit", sélectionne Premium automatiquement et verrouille ce choix
+  const effectiveQualityTier: QualityTier = activeTab === 'fiche_produit' ? 'premium' : selectedQuality;
+  const qualite: 'standard' | 'premium' = effectiveQualityTier === 'premium' ? 'premium' : 'standard';
+  const resolution: '1K' | '2K' = effectiveQualityTier === 'standard' ? '1K' : '2K';
+  const cost = effectiveQualityTier === 'standard' ? 1 : 2;
+
   // Synchronisation lors de l'ouverture ou des modifications de props
   useEffect(() => {
     if (isOpen) {
       setActiveTab(initialMode);
       setPrompt(initialPrompt);
       setFormat(initialFormat);
-      setResolution(initialResolution);
+      setSelectedQuality(initialQuality);
       setErrorMsg(null);
       setIsInsufficientCredits(false);
 
@@ -121,7 +130,7 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
         setPhotos([]);
       }
     }
-  }, [isOpen, initialMode, initialPhotoUrl, initialPrompt, initialFormat, initialResolution]);
+  }, [isOpen, initialMode, initialPhotoUrl, initialPrompt, initialFormat, initialQuality]);
 
   // Fermeture via la touche Échap
   useEffect(() => {
@@ -140,7 +149,6 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
   const requiresPhoto = Boolean(currentTabConfig.requiresPhoto);
   const showPhotoUploader = activeTab === 'fiche_produit' || activeTab === 'modifier';
 
-  const cost = resolution === '2K' ? 2 : 1;
   const isPromptValid = prompt.trim().length > 0;
   const isPhotosValid = !requiresPhoto || photos.length > 0;
   const canGenerate = isPromptValid && isPhotosValid && !isGenerating;
@@ -235,6 +243,7 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
           prompt: prompt.trim(),
           format,
           resolution,
+          qualite,
           sources: uploadedSourcePaths
         },
         user.id
@@ -264,6 +273,8 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
           prompt: prompt.trim(),
           format,
           resolution,
+          qualite: result.qualite || qualite,
+          cout: result.cout || cost,
           sources: uploadedSourcePaths,
           sourceLocalUrls: photos.map((p) => p.url),
           created_at: new Date().toISOString()
@@ -503,20 +514,31 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
             </div>
           </div>
 
-          {/* Qualité : Standard (1 crédit) ou Haute (2 crédits) */}
+          {/* Qualité, 3 options : Standard (1 crédit), Haute (2 crédits), Premium (2 crédits) */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              Qualité de rendu
-            </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Qualité de rendu
+              </label>
+              {activeTab === 'fiche_produit' && (
+                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                  Verrouillé sur Premium
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {/* Option 1 : Standard (1 crédit) */}
               <button
                 type="button"
-                disabled={isGenerating}
-                onClick={() => setResolution('1K')}
-                className={`flex items-center justify-between p-2.5 rounded-2xl border text-left transition cursor-pointer ${
-                  resolution === '1K'
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 shadow-2xs'
-                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                disabled={isGenerating || activeTab === 'fiche_produit'}
+                onClick={() => setSelectedQuality('standard')}
+                className={`flex items-center sm:flex-col sm:items-start justify-between p-2.5 rounded-2xl border text-left transition ${
+                  activeTab === 'fiche_produit'
+                    ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50'
+                    : effectiveQualityTier === 'standard'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 shadow-2xs cursor-pointer'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer'
                 }`}
               >
                 <div>
@@ -524,22 +546,27 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">1 crédit · 1K rapide</div>
                 </div>
                 <div
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                    resolution === '1K' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 sm:mt-2 sm:self-end ${
+                    effectiveQualityTier === 'standard'
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-slate-300 dark:border-slate-600'
                   }`}
                 >
-                  {resolution === '1K' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  {effectiveQualityTier === 'standard' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </div>
               </button>
 
+              {/* Option 2 : Haute (2 crédits) */}
               <button
                 type="button"
-                disabled={isGenerating}
-                onClick={() => setResolution('2K')}
-                className={`flex items-center justify-between p-2.5 rounded-2xl border text-left transition cursor-pointer ${
-                  resolution === '2K'
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 shadow-2xs'
-                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                disabled={isGenerating || activeTab === 'fiche_produit'}
+                onClick={() => setSelectedQuality('haute')}
+                className={`flex items-center sm:flex-col sm:items-start justify-between p-2.5 rounded-2xl border text-left transition ${
+                  activeTab === 'fiche_produit'
+                    ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50'
+                    : effectiveQualityTier === 'haute'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 shadow-2xs cursor-pointer'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer'
                 }`}
               >
                 <div>
@@ -547,14 +574,54 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">2 crédits · 2K détaillé</div>
                 </div>
                 <div
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                    resolution === '2K' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 sm:mt-2 sm:self-end ${
+                    effectiveQualityTier === 'haute'
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-slate-300 dark:border-slate-600'
                   }`}
                 >
-                  {resolution === '2K' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  {effectiveQualityTier === 'haute' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+              </button>
+
+              {/* Option 3 : Premium (2 crédits) */}
+              <button
+                type="button"
+                disabled={isGenerating}
+                onClick={() => setSelectedQuality('premium')}
+                className={`flex items-center sm:flex-col sm:items-start justify-between p-2.5 rounded-2xl border text-left transition cursor-pointer ${
+                  effectiveQualityTier === 'premium'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 shadow-2xs ring-1 ring-blue-500/30'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold leading-tight">Premium</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+                      Texte & Pro
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">2 crédits · Recommandé</div>
+                </div>
+                <div
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 sm:mt-2 sm:self-end ${
+                    effectiveQualityTier === 'premium'
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-slate-300 dark:border-slate-600'
+                  }`}
+                >
+                  {effectiveQualityTier === 'premium' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </div>
               </button>
             </div>
+
+            {/* Note spécifique onglet Affiche */}
+            {activeTab === 'affiche' && (
+              <p className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl px-3 py-2 mt-2 leading-relaxed">
+                Premium recommandé pour le texte. Vérifie l'orthographe avant d'utiliser l'affiche.
+              </p>
+            )}
           </div>
 
           {/* État de chargement pendant la création (jusqu'à 2 minutes) */}

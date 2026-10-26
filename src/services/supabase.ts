@@ -1,4 +1,13 @@
-import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
+import {
+  getSupabase,
+  isSupabaseConfigured,
+  getSupabaseDomain,
+  getSupabaseUrl,
+  getSupabaseAnonKey,
+  checkSupabaseHealth,
+  initSupabase as initSupabaseClient
+} from '../lib/supabase';
 import type {
   DocumentData,
   DocumentRecord,
@@ -10,34 +19,26 @@ import type {
   SignUpData
 } from '../types';
 
-let supabaseClient: SupabaseClient | null = null;
-let isConfigured = false;
+export {
+  getSupabase,
+  isSupabaseConfigured,
+  getSupabaseDomain,
+  getSupabaseUrl,
+  getSupabaseAnonKey,
+  checkSupabaseHealth
+};
+
+let supabaseClient: SupabaseClient | null = getSupabase();
 
 export function initSupabase(url?: string, anonKey?: string): boolean {
-  const supabaseUrl = url || import.meta.env.VITE_SUPABASE_URL || '';
-  const supabaseAnonKey = anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-  if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
-    try {
-      supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true
-        }
-      });
-      isConfigured = true;
-      return true;
-    } catch (err) {
-      console.warn('Failed to initialize Supabase client:', err);
-    }
-  }
-
-  isConfigured = false;
-  return false;
+  const success = initSupabaseClient(url, anonKey);
+  supabaseClient = getSupabase();
+  return success;
 }
 
 export function isSupabaseReady(): boolean {
-  return isConfigured && supabaseClient !== null;
+  supabaseClient = getSupabase();
+  return isSupabaseConfigured() && supabaseClient !== null;
 }
 
 // ----------------------------------------------------
@@ -112,14 +113,99 @@ function saveLocalMessages(msgs: MessageRecord[]) {
 // AUTH & PROFILE FUNCTIONS
 // ----------------------------------------------------
 
+export function formatSupabaseAuthError(error: any): string {
+  if (!error) return "Une erreur est survenue lors de l'authentification.";
+  const msg = typeof error === 'string' ? error : (error.message || '');
+  const lower = msg.toLowerCase();
+
+  // 1. Réseau (Failed to fetch)
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('fetch failed') ||
+    lower.includes('networkerror') ||
+    lower.includes('load failed') ||
+    lower.includes('network request failed')
+  ) {
+    const domain = getSupabaseDomain();
+    if (domain) {
+      console.warn('Nom de domaine contacté :', domain);
+    }
+    return 'Impossible de joindre le serveur. Vérifie ta connexion ou réessaie dans un instant.';
+  }
+
+  // 2. Mot de passe incorrect
+  if (
+    lower.includes('invalid login credentials') ||
+    lower.includes('invalid credentials') ||
+    lower.includes('invalid_grant') ||
+    lower.includes('wrong password')
+  ) {
+    return 'Mot de passe incorrect ou adresse e-mail inexistante.';
+  }
+
+  // 3. E-mail déjà utilisé
+  if (
+    lower.includes('user already registered') ||
+    lower.includes('already registered') ||
+    lower.includes('already exists') ||
+    lower.includes('user_already_exists')
+  ) {
+    return 'Cette adresse e-mail est déjà utilisée par un autre compte.';
+  }
+
+  // 4. E-mail non confirmé
+  if (
+    lower.includes('email not confirmed') ||
+    lower.includes('email_not_confirmed') ||
+    lower.includes('unconfirmed')
+  ) {
+    return "Ton adresse e-mail n'a pas encore été confirmée. Merci de vérifier ta boîte de réception.";
+  }
+
+  // 5. Mot de passe trop court
+  if (
+    lower.includes('password should be at least') ||
+    lower.includes('weak_password') ||
+    lower.includes('password is too short')
+  ) {
+    return 'Le mot de passe est trop court. Il doit comporter au moins 6 caractères.';
+  }
+
+  // 6. Trop de tentatives
+  if (
+    lower.includes('rate limit') ||
+    lower.includes('over_email_send_rate_limit') ||
+    lower.includes('too many requests') ||
+    lower.includes('429')
+  ) {
+    return 'Trop de tentatives en peu de temps. Merci de patienter quelques minutes avant de réessayer.';
+  }
+
+  // 7. Format e-mail invalide
+  if (
+    lower.includes('unable to validate email address') ||
+    lower.includes('invalid email')
+  ) {
+    return "L'adresse e-mail saisie n'est pas valide.";
+  }
+
+  return msg || "Une erreur est survenue lors de l'authentification.";
+}
+
 export async function signUpWithEmail(
   email: string,
   password: string,
   profileData?: SignUpData
 ): Promise<{ user: UserProfile | null; error: string | null }> {
-  if (isSupabaseReady() && supabaseClient) {
-    // Note: Ne fais PAS d'update du profil après signUp.
-    // La base Supabase crée le profil toute seule via un trigger à partir de options.data.
+  if (!isSupabaseConfigured() || !supabaseClient) {
+    console.warn('Variables Supabase absentes');
+    return {
+      user: null,
+      error: "Configuration manquante : l'adresse ou la clé du projet n'est pas définie."
+    };
+  }
+
+  try {
     const { data, error } = await supabaseClient.auth.signUp({
       email,
       password,
@@ -137,7 +223,7 @@ export async function signUpWithEmail(
     });
 
     if (error) {
-      return { user: null, error: error.message };
+      return { user: null, error: formatSupabaseAuthError(error) };
     }
 
     if (data.user) {
@@ -155,36 +241,36 @@ export async function signUpWithEmail(
         error: null
       };
     }
-  }
 
-  // Fallback demo user
-  const demoUser: UserProfile = {
-    id: 'demo-user-' + Math.random().toString(36).substring(2, 9),
-    email,
-    nom: profileData?.nom || '',
-    prenoms: profileData?.prenoms || '',
-    sexe: profileData?.sexe || '',
-    pays: profileData?.pays || '',
-    whatsapp: profileData?.whatsapp || ''
-  };
-  localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(demoUser));
-  return { user: demoUser, error: null };
+    return { user: null, error: "Une erreur est survenue lors de l'inscription." };
+  } catch (err: any) {
+    return { user: null, error: formatSupabaseAuthError(err) };
+  }
 }
 
 export async function signInWithEmail(
   email: string,
   password: string
 ): Promise<{ user: UserProfile | null; error: string | null }> {
-  if (isSupabaseReady() && supabaseClient) {
+  if (!isSupabaseConfigured() || !supabaseClient) {
+    console.warn('Variables Supabase absentes');
+    return {
+      user: null,
+      error: "Configuration manquante : l'adresse ou la clé du projet n'est pas définie."
+    };
+  }
+
+  try {
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email,
       password
     });
+
     if (error) {
-      return { user: null, error: error.message };
+      return { user: null, error: formatSupabaseAuthError(error) };
     }
+
     if (data.user) {
-      // Lecture du profil sans faire de copie forcée de metadata vers la table
       let dbProfile: any = null;
       try {
         const { data: p } = await supabaseClient
@@ -211,15 +297,11 @@ export async function signInWithEmail(
         error: null
       };
     }
-  }
 
-  // Fallback demo user
-  const demoUser = getLocalUser() || {
-    id: 'demo-user-' + Math.random().toString(36).substring(2, 9),
-    email
-  };
-  localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(demoUser));
-  return { user: demoUser, error: null };
+    return { user: null, error: "Une erreur est survenue lors de la connexion." };
+  } catch (err: any) {
+    return { user: null, error: formatSupabaseAuthError(err) };
+  }
 }
 
 export async function signOutUser(): Promise<void> {
@@ -271,6 +353,37 @@ export async function getCurrentUser(): Promise<UserProfile | null> {
   return getLocalUser();
 }
 
+export async function restoreSessionUser(): Promise<UserProfile | null> {
+  return getCurrentUser();
+}
+
+export function subscribeToAuthState(
+  onStateChange: (event: string, user: UserProfile | null) => void
+): { unsubscribe: () => void } {
+  if (isSupabaseReady() && supabaseClient) {
+    const {
+      data: { subscription }
+    } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          const user = await getCurrentUser();
+          onStateChange(event, user);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        onStateChange(event, null);
+      }
+    });
+
+    return {
+      unsubscribe: () => subscription.unsubscribe()
+    };
+  }
+
+  return {
+    unsubscribe: () => {}
+  };
+}
+
 export async function updateUserProfile(
   userId: string,
   updates: Partial<UserProfile>
@@ -291,7 +404,7 @@ export async function updateUserProfile(
 
       if (error) {
         // Repli gracieux : mise à jour des metadata de l'utilisateur
-        await supabaseClient.auth.updateUser({
+        const { error: authError } = await supabaseClient.auth.updateUser({
           data: {
             nom: updates.nom,
             prenoms: updates.prenoms,
@@ -300,6 +413,12 @@ export async function updateUserProfile(
             whatsapp: updates.whatsapp
           }
         });
+        if (authError) {
+          return {
+            success: false,
+            error: "Impossible d'enregistrer les modifications du profil. Merci de réessayer."
+          };
+        }
       }
       return { success: true, error: null };
     } catch (err: any) {
@@ -803,6 +922,8 @@ export async function invokeExtractFunction(
         // Clean user-friendly message
         if (extractedMessage.includes('Non connecté') || extractedMessage.includes('401')) {
           extractedMessage = "Ta session a expiré. Merci de te reconnecter.";
+        } else if (extractedMessage.includes('429') || extractedMessage.toLowerCase().includes('rate limit')) {
+          extractedMessage = "Trop de requêtes pour l'instant. Merci de patienter un instant.";
         } else if (
           !isInsufficientCredits &&
           (extractedMessage.includes('Edge Function returned a non-2xx status code') ||
@@ -901,6 +1022,7 @@ export interface GenerateImagePayload {
   prompt: string;
   format: string;
   resolution: '1K' | '2K';
+  qualite?: 'standard' | 'premium';
   sources: string[];
 }
 
@@ -908,6 +1030,8 @@ export interface GenerateImageResult {
   image_id?: string;
   url?: string;
   credits_restants?: number;
+  qualite?: 'standard' | 'premium';
+  cout?: number;
   error?: string;
   isInsufficientCredits?: boolean;
 }
@@ -916,7 +1040,7 @@ export async function invokeGenerateImageFunction(
   params: GenerateImagePayload,
   userId?: string
 ): Promise<GenerateImageResult> {
-  const { mode, prompt, format, resolution, sources } = params;
+  const { mode, prompt, format, resolution, qualite = 'standard', sources } = params;
 
   if (isSupabaseReady() && supabaseClient) {
     try {
@@ -937,6 +1061,7 @@ export async function invokeGenerateImageFunction(
           prompt,
           format,
           resolution,
+          qualite,
           sources
         },
         headers: {
@@ -983,7 +1108,11 @@ export async function invokeGenerateImageFunction(
         }
 
         // Traduction et nettoyage des erreurs techniques
-        if (
+        if (extractedMessage.includes('Non connecté') || extractedMessage.includes('401')) {
+          extractedMessage = "Ta session a expiré. Merci de te reconnecter.";
+        } else if (extractedMessage.includes('429') || extractedMessage.toLowerCase().includes('rate limit')) {
+          extractedMessage = "Trop de requêtes pour l'instant. Merci de patienter un instant.";
+        } else if (
           extractedMessage.includes('Edge Function') ||
           extractedMessage.includes('non-2xx') ||
           extractedMessage.includes('Failed to send') ||
@@ -1011,6 +1140,8 @@ export async function invokeGenerateImageFunction(
       return {
         image_id: data?.image_id,
         url: data?.url,
+        qualite: data?.qualite || qualite,
+        cout: typeof data?.cout === 'number' ? data.cout : (qualite === 'premium' || resolution === '2K' ? 2 : 1),
         credits_restants: typeof data?.credits_restants === 'number' ? data.credits_restants : undefined
       };
     } catch (err: any) {
@@ -1022,7 +1153,7 @@ export async function invokeGenerateImageFunction(
   }
 
   // Fallback direct de démonstration (pour test sans fonction Supabase déployée)
-  const cost = resolution === '2K' ? 2 : 1;
+  const cost = qualite === 'premium' || resolution === '2K' ? 2 : 1;
   const currentCredits = userId ? await fetchUserCredits(userId) : 10;
   if (currentCredits !== null && currentCredits < cost) {
     return {
@@ -1066,7 +1197,7 @@ export async function invokeGenerateImageFunction(
     <rect width="${size.w}" height="${size.h}" fill="url(#bg)"/>
     <circle cx="${size.w / 2}" cy="${size.h / 2 - 40}" r="${Math.min(size.w, size.h) * 0.25}" fill="rgba(255,255,255,0.12)" />
     <text x="50%" y="${size.h / 2 - 10}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.045)}px" font-weight="bold" fill="#ffffff" text-anchor="middle">${modeLabel}</text>
-    <text x="50%" y="${size.h / 2 + 35}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.026)}px" fill="rgba(255,255,255,0.85)" text-anchor="middle">Format ${format} · ${resolution}</text>
+    <text x="50%" y="${size.h / 2 + 35}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.026)}px" fill="rgba(255,255,255,0.85)" text-anchor="middle">Format ${format} · ${resolution} · ${qualite}</text>
     <text x="50%" y="${size.h - 50}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.022)}px" fill="rgba(255,255,255,0.7)" text-anchor="middle">Visora AI · Rendu fidèle</text>
   </svg>`;
 
@@ -1081,7 +1212,10 @@ export async function invokeGenerateImageFunction(
       prompt,
       format,
       resolution,
-      chemin: `demo/${imageId}.png`,
+      qualite,
+      modele: qualite,
+      cout: cost,
+      chemin: `demo/${imageId}.${qualite === 'premium' ? 'jpg' : 'png'}`,
       statut: 'termine',
       created_at: new Date().toISOString(),
       signedUrl: demoDataUrl
@@ -1091,6 +1225,8 @@ export async function invokeGenerateImageFunction(
   return {
     image_id: imageId,
     url: demoDataUrl,
+    qualite,
+    cout: cost,
     credits_restants: remaining
   };
 }
@@ -1112,8 +1248,9 @@ export function saveDemoImageRecord(userId: string, record: any): void {
 
 export async function fetchUserImages(userId: string): Promise<import('../types').ImageHistoryRecord[]> {
   if (isSupabaseReady() && supabaseClient) {
+    const client = supabaseClient;
     try {
-      const { data, error } = await supabaseClient
+      const { data, error } = await client
         .from('images')
         .select('*')
         .eq('user_id', userId)
@@ -1126,7 +1263,7 @@ export async function fetchUserImages(userId: string): Promise<import('../types'
             let signedUrl = row.url || '';
             if (row.chemin) {
               try {
-                const { data: signData } = await supabaseClient.storage
+                const { data: signData } = await client.storage
                   .from('images')
                   .createSignedUrl(row.chemin, 3600);
                 if (signData?.signedUrl) {
@@ -1143,6 +1280,9 @@ export async function fetchUserImages(userId: string): Promise<import('../types'
               prompt: row.prompt,
               format: row.format,
               resolution: row.resolution,
+              modele: row.modele,
+              qualite: row.qualite,
+              cout: row.cout,
               chemin: row.chemin,
               statut: row.statut,
               created_at: row.created_at,
@@ -1170,7 +1310,7 @@ export async function fetchUserImages(userId: string): Promise<import('../types'
   return [];
 }
 
-export async function downloadImageFile(url: string, customName?: string): Promise<void> {
+export async function downloadImageFile(url: string, isPremium = false, customName?: string): Promise<void> {
   const now = new Date();
   const dateStr = [
     now.getFullYear(),
@@ -1182,7 +1322,8 @@ export async function downloadImageFile(url: string, customName?: string): Promi
     String(now.getSeconds()).padStart(2, '0')
   ].join('');
 
-  const filename = customName || `visora-image-${dateStr}.png`;
+  const ext = isPremium ? 'jpg' : 'png';
+  const filename = customName || `visora-image-${dateStr}.${ext}`;
 
   try {
     const res = await fetch(url);

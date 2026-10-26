@@ -19,11 +19,27 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+function cleanEnvValue(val?: string | null): string {
+  if (!val) return '';
+  return val.trim().replace(/^["']+|["']+$/g, '').trim();
+}
+
+function cleanSupabaseUrl(url?: string | null): string {
+  let cleaned = cleanEnvValue(url).replace(/\/+$/, '');
+  const match = cleaned.match(/^(https:\/\/[a-z0-9_-]+\.supabase\.co)/i);
+  if (match) {
+    cleaned = match[1];
+  }
+  return cleaned;
+}
+
 // Provide Supabase configuration to frontend
 app.get('/api/config', (req, res) => {
+  const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const rawKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
   res.json({
-    supabaseUrl: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
+    supabaseUrl: cleanSupabaseUrl(rawUrl),
+    supabaseAnonKey: cleanEnvValue(rawKey)
   });
 });
 

@@ -137,11 +137,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       type="button"
                       onClick={() => {
                         if (message.generatedImage?.url) {
-                          downloadImageFile(message.generatedImage.url);
+                          downloadImageFile(
+                            message.generatedImage.url,
+                            message.generatedImage.qualite === 'premium'
+                          );
                         }
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
-                      title="Télécharger l'image en PNG"
+                      title={message.generatedImage.qualite === 'premium' ? "Télécharger l'image en JPG" : "Télécharger l'image en PNG"}
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Télécharger</span>

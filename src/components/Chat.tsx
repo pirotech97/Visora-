@@ -22,7 +22,7 @@ import { RechargeButton } from './RechargeButton';
 import { BottomNav } from './BottomNav';
 import { VisoraMascot } from './VisoraMascot';
 import { VisoraHelpModal } from './VisoraHelpModal';
-import { CreateImageModal, ImageTabMode } from './CreateImageModal';
+import { CreateImageModal, ImageTabMode, QualityTier } from './CreateImageModal';
 import { openWhatsAppRecharge } from '../services/constants';
 import { processDocumentFile } from '../services/pdfConverter';
 import { convertDocxToPdfBlob } from '../services/docxToPdf';
@@ -75,15 +75,16 @@ export const Chat: React.FC<ChatProps> = ({
   const [creditsError, setCreditsError] = useState(false);
   const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
 
-  // Modal "Créer une image"
+  // Modal "Créer une image" et confirmation de regénération
   const [isCreateImageModalOpen, setIsCreateImageModalOpen] = useState(false);
   const [createImageInitialData, setCreateImageInitialData] = useState<{
     mode?: ImageTabMode;
     photoUrl?: string;
     prompt?: string;
     format?: string;
-    resolution?: '1K' | '2K';
+    quality?: QualityTier;
   }>({});
+  const [confirmRegeneratePayload, setConfirmRegeneratePayload] = useState<GeneratedImagePayload | null>(null);
 
   useEffect(() => {
     if (createImageTrigger && createImageTrigger > 0) {
@@ -552,7 +553,7 @@ export const Chat: React.FC<ChatProps> = ({
     photoUrl?: string;
     prompt?: string;
     format?: string;
-    resolution?: '1K' | '2K';
+    quality?: QualityTier;
   }) => {
     if (data) {
       setCreateImageInitialData(data);
@@ -580,9 +581,32 @@ export const Chat: React.FC<ChatProps> = ({
     setTimeout(() => scrollToBottom(), 100);
   };
 
-  const handleRegenerateImage = async (payload: GeneratedImagePayload) => {
-    setIsProcessing(true);
-    setErrorMessage(null);
+  const handleExecuteRegenerate = async (payload: GeneratedImagePayload) => {
+    const cost = payload.cout || (payload.qualite === 'premium' || payload.resolution === '2K' ? 2 : 1);
+    if (credits !== null && credits < cost) {
+      const errMsg = await insertMessageRecord(
+        user.id,
+        'visora',
+        "Crédits insuffisants pour regénérer cette image. Recharge ton solde pour continuer."
+      );
+      errMsg.showRechargeButton = true;
+      setMessages((prev) => [...prev, errMsg]);
+      setTimeout(() => scrollToBottom(), 100);
+      return;
+    }
+
+    const tempLoadingId = 'temp_regen_' + Date.now();
+    const loadingMsg: MessageRecord = {
+      id: tempLoadingId,
+      user_id: user.id,
+      role: 'visora',
+      contenu: "Création en cours, cela peut prendre jusqu'à une minute…",
+      isLoading: true,
+      created_at: new Date().toISOString()
+    };
+    setMessages((prev) => [...prev, loadingMsg]);
+    setTimeout(() => scrollToBottom(), 100);
+
     try {
       const result = await invokeGenerateImageFunction(
         {
@@ -590,6 +614,7 @@ export const Chat: React.FC<ChatProps> = ({
           prompt: payload.prompt,
           format: payload.format,
           resolution: payload.resolution,
+          qualite: payload.qualite || (payload.resolution === '2K' ? 'standard' : 'standard'),
           sources: payload.sources || []
         },
         user.id
@@ -597,14 +622,18 @@ export const Chat: React.FC<ChatProps> = ({
 
       if (result.error) {
         setErrorMessage(result.error);
+        const errMsg = await insertMessageRecord(
+          user.id,
+          'visora',
+          result.error
+        );
         if (result.isInsufficientCredits) {
-          const errMsg = await insertMessageRecord(
-            user.id,
-            'visora',
-            result.error
-          );
           errMsg.showRechargeButton = true;
-          setMessages((prev) => [...prev, errMsg]);
+        }
+        setMessages((prev) => prev.filter((m) => m.id !== tempLoadingId).concat(errMsg));
+        if (typeof result.credits_restants === 'number') {
+          setCredits(result.credits_restants);
+          onCreditsChange?.(result.credits_restants);
         }
         return;
       }
@@ -619,6 +648,8 @@ export const Chat: React.FC<ChatProps> = ({
           ...payload,
           image_id: result.image_id,
           url: result.url,
+          qualite: result.qualite || payload.qualite,
+          cout: result.cout || cost,
           created_at: new Date().toISOString()
         };
 
@@ -629,24 +660,29 @@ export const Chat: React.FC<ChatProps> = ({
         );
         savedMsg.generatedImage = newPayload;
 
-        setMessages((prev) => [...prev, savedMsg]);
+        setMessages((prev) => prev.filter((m) => m.id !== tempLoadingId).concat(savedMsg));
         setTimeout(() => scrollToBottom(), 100);
       }
     } catch (err: any) {
-      console.warn('handleRegenerateImage error:', err);
-      setErrorMessage("Impossible de regénérer l'image.");
-    } finally {
-      setIsProcessing(false);
+      console.warn('handleExecuteRegenerate error:', err);
+      const errAssistantMsg = await insertMessageRecord(
+        user.id,
+        'visora',
+        "Impossible de regénérer l'image pour le moment. Merci de réessayer."
+      );
+      setMessages((prev) => prev.filter((m) => m.id !== tempLoadingId).concat(errAssistantMsg));
     }
   };
 
   const handleModifyImage = (payload: GeneratedImagePayload) => {
+    const qual: QualityTier =
+      payload.qualite === 'premium' ? 'premium' : payload.resolution === '2K' ? 'haute' : 'standard';
     handleOpenCreateImage({
       mode: 'modifier',
       photoUrl: payload.url,
       prompt: payload.prompt,
       format: payload.format,
-      resolution: payload.resolution
+      quality: qual
     });
   };
 
@@ -864,29 +900,30 @@ export const Chat: React.FC<ChatProps> = ({
                     </div>
                   </button>
 
-                  {/* 4. "Créer une image" / "Bientôt disponible" : carte grisée, non cliquable. */}
-                  <div
-                    className="empty-chat-card w-full bg-slate-50/70 rounded-2xl border border-slate-200/70 shadow-none px-4 flex items-center gap-3.5 opacity-50 cursor-not-allowed select-none text-left"
-                    title="Bientôt disponible"
-                    aria-disabled="true"
+                  {/* 4. "Créer une image" : carte cliquable active */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateImage({ mode: 'image' })}
+                    className="empty-chat-card w-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-2xs px-4 flex items-center gap-3.5 select-none cursor-pointer text-left hover:border-blue-300 dark:hover:border-blue-600 transition"
+                    title="Créer une image avec Visora"
                   >
-                    <div className="empty-chat-icon w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                    <div className="empty-chat-icon w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                       <ImageIcon className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="font-bold text-sm text-slate-700 truncate">
+                        <div className="font-bold text-sm text-slate-900 dark:text-white truncate">
                           Créer une image
                         </div>
-                        <div className="text-xs text-slate-400 truncate mt-0.5">
-                          Bientôt disponible
+                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          Affiches, fiches produits et visuels IA
                         </div>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-600 uppercase tracking-wide shrink-0">
-                        Bientôt
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 uppercase tracking-wide shrink-0">
+                        Nouveau
                       </span>
                     </div>
-                  </div>
+                  </button>
                 </div>
               </div>
             </div>
@@ -899,6 +936,8 @@ export const Chat: React.FC<ChatProps> = ({
                   message={message}
                   userEmail={user.email}
                   userCredits={credits ?? 0}
+                  onRegenerateImage={(payload) => setConfirmRegeneratePayload(payload)}
+                  onModifyImage={handleModifyImage}
                 />
               ))}
             </div>
@@ -950,6 +989,8 @@ export const Chat: React.FC<ChatProps> = ({
             onFocusTextarea={handleFocusTextarea}
             credits={credits}
             userEmail={user.email}
+            onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+            onOpenCreateImage={() => handleOpenCreateImage({ mode: 'image' })}
           />
 
           <div className="mt-0.5">
@@ -998,6 +1039,76 @@ export const Chat: React.FC<ChatProps> = ({
         documents={documents}
         onRefresh={loadData}
       />
+
+      {/* Modal Créer une image */}
+      <CreateImageModal
+        isOpen={isCreateImageModalOpen}
+        onClose={() => setIsCreateImageModalOpen(false)}
+        user={user}
+        credits={credits}
+        onCreditsChange={(c) => {
+          setCredits(c);
+          onCreditsChange?.(c);
+        }}
+        onImageGenerated={handleImageGenerated}
+        onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+        initialMode={createImageInitialData.mode}
+        initialPhotoUrl={createImageInitialData.photoUrl}
+        initialPrompt={createImageInitialData.prompt}
+        initialFormat={createImageInitialData.format}
+        initialQuality={createImageInitialData.quality}
+      />
+
+      {/* Confirmation préalable du coût pour la régénération */}
+      {confirmRegeneratePayload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
+                  Regénérer cette création ?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Relance avec les mêmes paramètres
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Cette action débitera{' '}
+              <strong className="text-slate-900 dark:text-white">
+                {confirmRegeneratePayload.cout || (confirmRegeneratePayload.qualite === 'premium' || confirmRegeneratePayload.resolution === '2K' ? 2 : 1)} crédit
+                {(confirmRegeneratePayload.cout || (confirmRegeneratePayload.qualite === 'premium' || confirmRegeneratePayload.resolution === '2K' ? 2 : 1)) > 1 ? 's' : ''}
+              </strong>{' '}
+              de votre solde actuel.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmRegeneratePayload(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = confirmRegeneratePayload;
+                  setConfirmRegeneratePayload(null);
+                  handleExecuteRegenerate(target);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xs transition cursor-pointer"
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

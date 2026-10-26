@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Lock,
@@ -11,12 +11,19 @@ import {
   Globe,
   User
 } from 'lucide-react';
-import { signInWithEmail, signUpWithEmail } from '../services/supabase';
+import {
+  signInWithEmail,
+  signUpWithEmail,
+  isSupabaseConfigured,
+  checkSupabaseHealth,
+  formatSupabaseAuthError
+} from '../services/supabase';
 import type { UserProfile, SignUpData } from '../types';
 
 interface AuthScreenProps {
   onAuthSuccess: (user: UserProfile) => void;
   isCloudReady: boolean;
+  initialErrorMsg?: string | null;
 }
 
 const PAYS_LIST = [
@@ -36,7 +43,11 @@ const PAYS_LIST = [
   'Autre'
 ];
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isCloudReady }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({
+  onAuthSuccess,
+  isCloudReady,
+  initialErrorMsg
+}) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,11 +60,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isCloudRe
   const [whatsapp, setWhatsapp] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(initialErrorMsg || null);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
+
+  useEffect(() => {
+    if (initialErrorMsg) {
+      setErrorMsg(initialErrorMsg);
+    }
+  }, [initialErrorMsg]);
+
+  // Contrôle discret de santé au chargement : GET {URL}/auth/v1/health avec apikey
+  useEffect(() => {
+    let isMounted = true;
+    checkSupabaseHealth().then((ok) => {
+      if (isMounted && !ok) {
+        setServiceUnavailable(true);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    // Vérification de la configuration Supabase
+    if (!isSupabaseConfigured()) {
+      console.warn('Variables Supabase absentes');
+      setErrorMsg("Configuration manquante : l'adresse ou la clé du projet n'est pas définie.");
+      return;
+    }
 
     if (!email || !password) {
       setErrorMsg('Merci de renseigner votre e-mail et votre mot de passe.');
@@ -61,7 +99,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isCloudRe
     }
 
     if (password.length < 6) {
-      setErrorMsg('Le mot de passe doit comporter au moins 6 caractères.');
+      setErrorMsg('Le mot de passe est trop court. Il doit comporter au moins 6 caractères.');
       return;
     }
 
@@ -101,8 +139,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isCloudRe
           whatsapp: whatsapp.trim()
         };
 
-        // Envoi direct dans signUp({ options: { data } }).
-        // Aucune mise à jour manuelle du profil après signUp.
         const { user, error } = await signUpWithEmail(email, password, profileData);
         if (error) {
           setErrorMsg(error);
@@ -112,13 +148,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isCloudRe
       } else {
         const { user, error } = await signInWithEmail(email, password);
         if (error) {
-          setErrorMsg(error === 'Invalid login credentials' ? 'Identifiants incorrects.' : error);
+          setErrorMsg(error);
         } else if (user) {
           onAuthSuccess(user);
         }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Une erreur est survenue lors de la connexion.');
+      setErrorMsg(formatSupabaseAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -181,6 +217,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isCloudRe
               Inscription
             </button>
           </div>
+
+          {serviceUnavailable && (
+            <div className="mb-4 flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs sm:text-sm border border-amber-200 dark:border-amber-900/40">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <span>Le service est momentanément indisponible</span>
+            </div>
+          )}
 
           {errorMsg && (
             <div className="mb-4 flex items-start gap-2.5 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs sm:text-sm border border-red-100 dark:border-red-900/40">

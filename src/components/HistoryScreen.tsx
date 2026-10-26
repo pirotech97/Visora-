@@ -73,7 +73,8 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   onGoToChat,
   activeTab,
   onTabChange,
-  onOpenMenu
+  onOpenMenu,
+  onOpenCreateImage
 }) => {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -426,78 +427,86 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            {images.map((img) => (
-              <div
-                key={img.id}
-                className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-3 sm:p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition hover:shadow-xs"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  {/* Miniature via createSignedUrl sur le bucket "images" */}
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0 flex items-center justify-center">
-                    {img.signedUrl ? (
-                      <img
-                        src={img.signedUrl}
-                        alt={img.prompt || 'Miniature'}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <ImageIcon className="w-6 h-6 text-slate-500" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
-                        {img.mode || 'Image'}
-                      </span>
-                      {img.format && (
-                        <span className="text-[11px] text-slate-400">
-                          {img.format}
-                        </span>
-                      )}
-                      {img.resolution && (
-                        <span className="text-[11px] text-slate-400">
-                          · {img.resolution}
-                        </span>
+            {images.map((img) => {
+              const isPremium = img.modele === 'premium' || img.qualite === 'premium';
+              return (
+                <div
+                  key={img.id}
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-3 sm:p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition hover:shadow-xs"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    {/* Miniature via createSignedUrl sur le bucket "images" */}
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0 flex items-center justify-center">
+                      {img.signedUrl ? (
+                        <img
+                          src={img.signedUrl}
+                          alt={img.prompt || 'Miniature'}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <ImageIcon className="w-6 h-6 text-slate-500" />
                       )}
                     </div>
-                    <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white line-clamp-2 leading-snug">
-                      {img.prompt || 'Création graphique Visora'}
-                    </p>
-                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{formatFrenchDate(img.created_at)}</span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                          {img.mode || 'Image'}
+                        </span>
+                        {isPremium && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60">
+                            Premium
+                          </span>
+                        )}
+                        {img.format && (
+                          <span className="text-[11px] text-slate-400">
+                            {img.format}
+                          </span>
+                        )}
+                        {img.resolution && (
+                          <span className="text-[11px] text-slate-400">
+                            · {img.resolution}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white line-clamp-2 leading-snug">
+                        {img.prompt || 'Création graphique Visora'}
+                      </p>
+                      <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{formatFrenchDate(img.created_at)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-700/60">
-                  <button
-                    type="button"
-                    disabled={!img.signedUrl || downloadingImageId === img.id}
-                    onClick={async () => {
-                      if (!img.signedUrl) return;
-                      setDownloadingImageId(img.id);
-                      try {
-                        await downloadImageFile(img.signedUrl);
-                      } finally {
-                        setDownloadingImageId(null);
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-                    title="Télécharger l'image en PNG"
-                  >
-                    {downloadingImageId === img.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Download className="w-3.5 h-3.5" />
-                    )}
-                    <span>Télécharger</span>
-                  </button>
+                  <div className="flex items-center justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-700/60">
+                    <button
+                      type="button"
+                      disabled={!img.signedUrl || downloadingImageId === img.id}
+                      onClick={async () => {
+                        if (!img.signedUrl) return;
+                        setDownloadingImageId(img.id);
+                        try {
+                          await downloadImageFile(img.signedUrl, isPremium);
+                        } finally {
+                          setDownloadingImageId(null);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+                      title={isPremium ? "Télécharger l'image en JPG" : "Télécharger l'image en PNG"}
+                    >
+                      {downloadingImageId === img.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5" />
+                      )}
+                      <span>Télécharger</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )
       ) : loading ? (

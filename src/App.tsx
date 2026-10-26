@@ -8,7 +8,12 @@ import { SidebarDrawer } from './components/SidebarDrawer';
 import { OfflineBanner } from './components/OfflineBanner';
 import { PWAUpdateBanner } from './components/PWAUpdateBanner';
 import { fetchServerConfig } from './services/api';
-import { initSupabase, getCurrentUser, fetchUserCredits } from './services/supabase';
+import {
+  initSupabase,
+  restoreSessionUser,
+  subscribeToAuthState,
+  fetchUserCredits
+} from './services/supabase';
 import type { UserProfile, AppTab } from './types';
 
 export default function App() {
@@ -20,6 +25,8 @@ export default function App() {
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
+  const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
+  const isVoluntarySignOut = React.useRef(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -38,18 +45,39 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let authSub: { unsubscribe: () => void } | null = null;
+
     async function initialize() {
       try {
         const config = await fetchServerConfig();
         const ready = initSupabase(config.supabaseUrl, config.supabaseAnonKey);
         setIsCloudReady(ready);
 
-        const currentUser = await getCurrentUser();
-        if (currentUser) {
-          setUser(currentUser);
-          const c = await fetchUserCredits(currentUser.id);
+        // 1. Au chargement, restauration de la session avec getSession
+        const sessionUser = await restoreSessionUser();
+        if (sessionUser) {
+          setUser(sessionUser);
+          const c = await fetchUserCredits(sessionUser.id);
           setCredits(c);
         }
+
+        // 2. Maintien de la session à jour avec onAuthStateChange
+        authSub = subscribeToAuthState((event, updatedUser) => {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (updatedUser) {
+              setUser(updatedUser);
+              setSessionExpiredMsg(null);
+              fetchUserCredits(updatedUser.id).then((c) => setCredits(c));
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+            if (!isVoluntarySignOut.current) {
+              setSessionExpiredMsg('Ta session a expiré, reconnecte-toi.');
+            }
+            isVoluntarySignOut.current = false;
+            setActiveTab('chat');
+          }
+        });
       } catch (err) {
         console.warn('Initialization error:', err);
       } finally {
@@ -58,18 +86,33 @@ export default function App() {
     }
 
     initialize();
+
+    return () => {
+      authSub?.unsubscribe();
+    };
   }, []);
 
   const handleAuthSuccess = (authenticatedUser: UserProfile) => {
+    setSessionExpiredMsg(null);
     setUser(authenticatedUser);
     setActiveTab('chat');
     fetchUserCredits(authenticatedUser.id).then((c) => setCredits(c));
   };
 
   const handleSignOut = () => {
+    isVoluntarySignOut.current = true;
+    setSessionExpiredMsg(null);
     setUser(null);
     setActiveTab('chat');
     setIsMenuOpen(false);
+  };
+
+  const [createImageTrigger, setCreateImageTrigger] = useState(0);
+
+  const handleOpenCreateImage = () => {
+    setActiveTab('chat');
+    setIsMenuOpen(false);
+    setCreateImageTrigger((prev) => prev + 1);
   };
 
   const handleDocumentConverted = () => {
@@ -113,6 +156,7 @@ export default function App() {
               onTabChange={(tab) => setActiveTab(tab)}
               onOpenMenu={() => setIsMenuOpen(true)}
               onCreditsChange={(c) => setCredits(c)}
+              createImageTrigger={createImageTrigger}
             />
           )}
 
@@ -124,6 +168,7 @@ export default function App() {
               activeTab="history"
               onTabChange={(tab) => setActiveTab(tab)}
               onOpenMenu={() => setIsMenuOpen(true)}
+              onOpenCreateImage={handleOpenCreateImage}
             />
           )}
 
@@ -156,10 +201,15 @@ export default function App() {
             user={user}
             credits={credits}
             onSignOut={handleSignOut}
+            onOpenCreateImage={handleOpenCreateImage}
           />
         </div>
       ) : (
-        <AuthScreen onAuthSuccess={handleAuthSuccess} isCloudReady={isCloudReady} />
+        <AuthScreen
+          onAuthSuccess={handleAuthSuccess}
+          isCloudReady={isCloudReady}
+          initialErrorMsg={sessionExpiredMsg}
+        />
       )}
     </div>
   );

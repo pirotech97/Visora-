@@ -69,6 +69,8 @@ export interface GeneratedImagePayload {
   prompt: string;
   format: string;
   resolution: '1K' | '2K';
+  qualite?: 'standard' | 'premium';
+  cout?: number;
   sources?: string[];
   sourceLocalUrls?: string[];
   created_at?: string;
@@ -81,6 +83,9 @@ export interface ImageHistoryRecord {
   prompt?: string;
   format?: string;
   resolution?: string;
+  modele?: string;
+  qualite?: string;
+  cout?: number;
   chemin: string;
   statut: string;
   created_at: string;
