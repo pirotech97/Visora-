@@ -3,6 +3,7 @@ import {
   X,
   MessageSquare,
   Clock,
+  Layers,
   User,
   Settings,
   LogOut,
@@ -144,6 +145,22 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             <div className="flex items-center gap-3">
               <MessageSquare className="w-4 h-4" />
               <span>Discussion</span>
+            </div>
+            <ChevronRight className="w-4 h-4 opacity-40" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNavClick('tools')}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-semibold transition cursor-pointer ${
+              activeTab === 'tools'
+                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 shadow-2xs'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Layers className="w-4 h-4" />
+              <span>Outils</span>
             </div>
             <ChevronRight className="w-4 h-4 opacity-40" />
           </button>

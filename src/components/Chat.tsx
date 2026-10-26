@@ -12,7 +12,7 @@ import {
   Image as ImageIcon,
   Menu
 } from 'lucide-react';
-import type { MessageRecord, DocumentRecord, UserProfile, PendingFile, ConvertedPage } from '../types';
+import type { MessageRecord, DocumentRecord, UserProfile, PendingFile, ConvertedPage, AppTab } from '../types';
 import { MessageBubble } from './MessageBubble';
 import { ChatComposer } from './ChatComposer';
 import { HistoryModal } from './HistoryModal';
@@ -47,11 +47,12 @@ interface ChatProps {
   isCloudReady: boolean;
   onDocumentConverted?: () => void;
   onGoToHistory?: () => void;
-  activeTab?: 'chat' | 'history';
-  onTabChange?: (tab: 'chat' | 'history') => void;
+  activeTab?: AppTab;
+  onTabChange?: (tab: AppTab) => void;
   onOpenMenu?: () => void;
   onCreditsChange?: (credits: number | null) => void;
   createImageTrigger?: number;
+  onImageCreated?: (payload: GeneratedImagePayload) => void;
 }
 
 const WELCOME_TEXT =
@@ -67,7 +68,8 @@ export const Chat: React.FC<ChatProps> = ({
   onTabChange,
   onOpenMenu,
   onCreditsChange,
-  createImageTrigger
+  createImageTrigger,
+  onImageCreated
 }) => {
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -564,6 +566,8 @@ export const Chat: React.FC<ChatProps> = ({
   };
 
   const handleImageGenerated = async (payload: GeneratedImagePayload) => {
+    onImageCreated?.(payload);
+
     const userMsg = await insertMessageRecord(
       user.id,
       'utilisateur',
@@ -659,6 +663,7 @@ export const Chat: React.FC<ChatProps> = ({
           'Voici la nouvelle version de ton image :'
         );
         savedMsg.generatedImage = newPayload;
+        onImageCreated?.(newPayload);
 
         setMessages((prev) => prev.filter((m) => m.id !== tempLoadingId).concat(savedMsg));
         setTimeout(() => scrollToBottom(), 100);
@@ -995,11 +1000,13 @@ export const Chat: React.FC<ChatProps> = ({
 
           <div className="mt-0.5">
             <BottomNav
-              activeTab={activeTab || 'chat'}
+              activeTab="chat"
               onTabChange={(tab) => {
                 if (tab === 'history') {
                   if (onGoToHistory) onGoToHistory();
                   else onTabChange?.('history');
+                } else if (tab === 'tools') {
+                  onTabChange?.('tools');
                 } else {
                   onTabChange?.('chat');
                 }

@@ -151,7 +151,8 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
 
   const isPromptValid = prompt.trim().length > 0;
   const isPhotosValid = !requiresPhoto || photos.length > 0;
-  const canGenerate = isPromptValid && isPhotosValid && !isGenerating;
+  const hasInsufficientCredits = credits !== null && credits < cost;
+  const canGenerate = isPromptValid && isPhotosValid && !isGenerating && !hasInsufficientCredits;
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -313,22 +314,22 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
         }}
       >
         {/* En-tête */}
-        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3 shrink-0">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
               <Sparkles className="w-4 h-4" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <h2 id="modal-image-title" className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-tight">
                 Créer une image
               </h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Génération graphique haute fidélité
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                Standard : 1 crédit · Haute : 2 crédits · Premium : 2 crédits. Les crédits sont rendus si la création échoue.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0 mt-0.5">
             <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
               <Coins className="w-3 h-3 text-amber-500" />
               <span>{credits ?? 0}</span>
@@ -634,26 +635,73 @@ export const CreateImageModal: React.FC<CreateImageModalProps> = ({
             </div>
           )}
 
-          {/* Bouton Générer affichant le coût */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={!canGenerate}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white font-bold rounded-2xl text-sm shadow-md shadow-blue-500/20 disabled:shadow-none transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed min-h-[46px]"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Génération en cours…</span>
-                </>
-              ) : (
-                <>
+          {/* Si le solde est inférieur au coût choisi : désactive Générer et affiche le bouton Recharger */}
+          {hasInsufficientCredits ? (
+            <div className="space-y-2.5 pt-2">
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2 text-xs text-amber-800 dark:text-amber-200">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>
+                    Solde insuffisant ({credits ?? 0} crédit{(credits ?? 0) > 1 ? 's' : ''} restant{(credits ?? 0) > 1 ? 's' : ''}, {cost} requis).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenRecharge}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition cursor-pointer shadow-xs shrink-0"
+                >
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>Recharger</span>
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onOpenRecharge}
+                  className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-2xl text-sm shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer min-h-[46px]"
+                >
+                  <Coins className="w-4 h-4" />
+                  <span>Recharger</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={true}
+                  className="flex-1 py-3 px-4 bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 font-bold rounded-2xl text-sm transition flex items-center justify-center gap-2 cursor-not-allowed min-h-[46px]"
+                  title="Crédits insuffisants pour générer"
+                >
                   <Sparkles className="w-4 h-4" />
                   <span>Générer ({cost} crédit{cost > 1 ? 's' : ''})</span>
-                </>
-              )}
-            </button>
-          </div>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={!canGenerate}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white font-bold rounded-2xl text-sm shadow-md shadow-blue-500/20 disabled:shadow-none transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed min-h-[46px]"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Génération en cours…</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Générer ({cost} crédit{cost > 1 ? 's' : ''})</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Mention de bon usage en bas de l'écran */}
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center leading-relaxed pt-1">
+            N'utilise pas cet outil pour des images de personnes réelles sans leur accord, ni pour des contenus choquants ou illégaux.
+          </p>
         </form>
       </div>
     </div>

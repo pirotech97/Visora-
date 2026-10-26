@@ -12,14 +12,18 @@ import {
   FileCheck,
   Image as ImageIcon,
   Menu,
-  Sparkles
+  Sparkles,
+  RotateCw
 } from 'lucide-react';
-import type { DocumentSummary, UserProfile, DocumentData, DocxBlock, ImageHistoryRecord } from '../types';
+import type { DocumentSummary, UserProfile, DocumentData, DocxBlock, ImageHistoryRecord, AppTab } from '../types';
 import {
   fetchUserDocumentsSummary,
   fetchDocumentDetails,
   deleteDocumentRecord,
   fetchUserImages,
+  refreshImageSignedUrl,
+  getImageFilename,
+  downloadFreshImage,
   downloadImageFile
 } from '../services/supabase';
 import { downloadDocx } from '../services/docxGenerator';
@@ -33,10 +37,15 @@ interface HistoryScreenProps {
   user: UserProfile;
   refreshTrigger: number;
   onGoToChat: () => void;
-  activeTab?: 'chat' | 'history';
-  onTabChange?: (tab: 'chat' | 'history') => void;
+  activeTab?: AppTab;
+  onTabChange?: (tab: AppTab) => void;
   onOpenMenu?: () => void;
   onOpenCreateImage?: () => void;
+  images?: ImageHistoryRecord[];
+  loadingImages?: boolean;
+  imagesError?: string | null;
+  onReloadImages?: () => Promise<void> | void;
+  onUpdateFreshUrl?: (id: string, freshUrl: string) => void;
 }
 
 function formatFrenchDate(dateStr: string): string {
@@ -67,6 +76,169 @@ function formatFrenchDate(dateStr: string): string {
   }
 }
 
+interface ImageHistoryCardProps {
+  image: ImageHistoryRecord;
+  onZoom: () => void;
+  onUpdateSignedUrl?: (id: string, freshUrl: string) => void;
+}
+
+const ImageHistoryCard: React.FC<ImageHistoryCardProps> = ({
+  image,
+  onZoom,
+  onUpdateSignedUrl
+}) => {
+  const [imgSrc, setImgSrc] = useState(image.signedUrl || '');
+  const [hasRetried, setHasRetried] = useState(false);
+  const [isFailed, setIsFailed] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  useEffect(() => {
+    setImgSrc(image.signedUrl || '');
+    setHasRetried(false);
+    setIsFailed(false);
+  }, [image.signedUrl]);
+
+  const handleImageError = async () => {
+    if (!hasRetried && image.chemin) {
+      setHasRetried(true);
+      setIsRegenerating(true);
+      try {
+        const fresh = await refreshImageSignedUrl(image.chemin);
+        if (fresh) {
+          setImgSrc(fresh);
+          onUpdateSignedUrl?.(image.id, fresh);
+          setIsRegenerating(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('Erreur régénération adresse signée:', e);
+      }
+      setIsRegenerating(false);
+    }
+    setIsFailed(true);
+  };
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    let url = imgSrc;
+    if (!url && image.chemin) {
+      setIsDownloading(true);
+      const fresh = await refreshImageSignedUrl(image.chemin);
+      if (fresh) {
+        url = fresh;
+        setImgSrc(fresh);
+        onUpdateSignedUrl?.(image.id, fresh);
+      }
+      setIsDownloading(false);
+    }
+
+    if (!url) return;
+
+    setIsDownloading(true);
+    try {
+      const filename = getImageFilename(image.chemin, image.created_at);
+      await downloadFreshImage(url, filename);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const isPremium = image.modele === 'premium' || image.qualite === 'premium';
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-2xs hover:shadow-xs transition flex flex-col group">
+      {/* Miniature cliquable pour agrandir */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onZoom}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onZoom();
+          }
+        }}
+        className="aspect-square bg-slate-900 relative overflow-hidden cursor-pointer flex items-center justify-center select-none"
+        title="Cliquer pour agrandir"
+      >
+        {isFailed ? (
+          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-slate-100 dark:bg-slate-800/80 text-slate-400">
+            <AlertCircle className="w-6 h-6 mb-1 text-slate-400" />
+            <span className="text-[11px] font-medium text-slate-500">Image indisponible</span>
+          </div>
+        ) : imgSrc ? (
+          <img
+            src={imgSrc}
+            alt={image.prompt || 'Image Visora'}
+            onError={handleImageError}
+            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-500">
+            <ImageIcon className="w-7 h-7" />
+          </div>
+        )}
+
+        {isRegenerating && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center">
+            <Loader2 className="w-5 h-5 text-white animate-spin" />
+          </div>
+        )}
+
+        {isPremium && (
+          <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white shadow-xs">
+            Premium
+          </span>
+        )}
+
+        {image.mode && (
+          <span className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-black/60 text-white backdrop-blur-xs">
+            {image.mode}
+          </span>
+        )}
+
+        <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+          <div className="p-2 rounded-full bg-white/90 text-slate-900 shadow-sm">
+            <Eye className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
+
+      {/* Informations et bouton Télécharger */}
+      <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between gap-2">
+        <div>
+          <div className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1 mb-1">
+            <Clock className="w-3 h-3 shrink-0" />
+            <span className="truncate">{formatFrenchDate(image.created_at)}</span>
+          </div>
+          {image.prompt && (
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 line-clamp-1" title={image.prompt}>
+              {image.prompt}
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={isDownloading}
+          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50 min-h-[40px]"
+          title="Télécharger l'image"
+        >
+          {isDownloading ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5" />
+          )}
+          <span>Télécharger</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   user,
   refreshTrigger,
@@ -74,7 +246,12 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   activeTab,
   onTabChange,
   onOpenMenu,
-  onOpenCreateImage
+  onOpenCreateImage,
+  images: imagesProp,
+  loadingImages: loadingImagesProp,
+  imagesError: imagesErrorProp,
+  onReloadImages,
+  onUpdateFreshUrl
 }) => {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,11 +265,18 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 
   // Section switcher: Documents ou Images
   const [section, setSection] = useState<'documents' | 'images'>('documents');
-  const [images, setImages] = useState<ImageHistoryRecord[]>([]);
-  const [loadingImages, setLoadingImages] = useState(false);
-  const [downloadingImageId, setDownloadingImageId] = useState<string | null>(null);
+  const [internalImages, setInternalImages] = useState<ImageHistoryRecord[]>([]);
+  const [internalLoadingImages, setInternalLoadingImages] = useState(false);
+  const [internalImagesError, setInternalImagesError] = useState<string | null>(null);
 
-  // Quick preview modal states
+  const images = imagesProp !== undefined ? imagesProp : internalImages;
+  const loadingImages = loadingImagesProp !== undefined ? loadingImagesProp : internalLoadingImages;
+  const imagesError = imagesErrorProp !== undefined ? imagesErrorProp : internalImagesError;
+
+  // Zoom lightbox modal state
+  const [selectedZoomImage, setSelectedZoomImage] = useState<ImageHistoryRecord | null>(null);
+
+  // Quick preview modal states for documents
   const [previewDoc, setPreviewDoc] = useState<DocumentSummary | null>(null);
   const [previewData, setPreviewData] = useState<DocumentData | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -115,14 +299,24 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   };
 
   const loadImages = async () => {
-    setLoadingImages(true);
+    if (onReloadImages) {
+      await onReloadImages();
+      return;
+    }
+    setInternalLoadingImages(true);
+    setInternalImagesError(null);
     try {
-      const data = await fetchUserImages(user.id);
-      setImages(data);
+      const res = await fetchUserImages();
+      if (res.error) {
+        setInternalImagesError('Impossible de charger tes images. Réessaie.');
+      } else {
+        setInternalImages(res.data);
+      }
     } catch (err) {
       console.warn('Error loading images:', err);
+      setInternalImagesError('Impossible de charger tes images. Réessaie.');
     } finally {
-      setLoadingImages(false);
+      setInternalLoadingImages(false);
     }
   };
 
@@ -130,6 +324,17 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
     loadInitialDocs();
     loadImages();
   }, [user.id, refreshTrigger]);
+
+  // Fermer le zoom modal avec la touche Échap
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedZoomImage) {
+        setSelectedZoomImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedZoomImage]);
 
   const handleLoadMore = async () => {
     if (loadingMore || !hasMore) return;
@@ -395,14 +600,33 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
         loadingImages ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
-            <p className="text-sm font-medium text-slate-600">Chargement des images…</p>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Chargement des images…</p>
+          </div>
+        ) : imagesError ? (
+          <div className="py-16 px-4 text-center bg-white dark:bg-slate-800 rounded-3xl border border-red-200 dark:border-red-900/60 my-4 shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/60 text-red-600 flex items-center justify-center mx-auto mb-3">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+              Impossible de charger tes images. Réessaie.
+            </h3>
+            <button
+              type="button"
+              onClick={() => loadImages()}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>Réessayer</span>
+            </button>
           </div>
         ) : images.length === 0 ? (
           <div className="py-16 px-4 text-center bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-700 my-4 shadow-2xs">
             <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-3">
               <ImageIcon className="w-7 h-7" />
             </div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Aucune image pour le moment</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+              Tu n'as pas encore créé d'image.
+            </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 max-w-xs mx-auto leading-relaxed">
               Crée ta première image, affiche ou fiche produit avec Visora.
             </p>
@@ -426,87 +650,17 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {images.map((img) => {
-              const isPremium = img.modele === 'premium' || img.qualite === 'premium';
-              return (
-                <div
-                  key={img.id}
-                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-3 sm:p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition hover:shadow-xs"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    {/* Miniature via createSignedUrl sur le bucket "images" */}
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0 flex items-center justify-center">
-                      {img.signedUrl ? (
-                        <img
-                          src={img.signedUrl}
-                          alt={img.prompt || 'Miniature'}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <ImageIcon className="w-6 h-6 text-slate-500" />
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
-                          {img.mode || 'Image'}
-                        </span>
-                        {isPremium && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60">
-                            Premium
-                          </span>
-                        )}
-                        {img.format && (
-                          <span className="text-[11px] text-slate-400">
-                            {img.format}
-                          </span>
-                        )}
-                        {img.resolution && (
-                          <span className="text-[11px] text-slate-400">
-                            · {img.resolution}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white line-clamp-2 leading-snug">
-                        {img.prompt || 'Création graphique Visora'}
-                      </p>
-                      <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{formatFrenchDate(img.created_at)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-700/60">
-                    <button
-                      type="button"
-                      disabled={!img.signedUrl || downloadingImageId === img.id}
-                      onClick={async () => {
-                        if (!img.signedUrl) return;
-                        setDownloadingImageId(img.id);
-                        try {
-                          await downloadImageFile(img.signedUrl, isPremium);
-                        } finally {
-                          setDownloadingImageId(null);
-                        }
-                      }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-                      title={isPremium ? "Télécharger l'image en JPG" : "Télécharger l'image en PNG"}
-                    >
-                      {downloadingImageId === img.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Download className="w-3.5 h-3.5" />
-                      )}
-                      <span>Télécharger</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 pb-4">
+            {images.map((img) => (
+              <ImageHistoryCard
+                key={img.id}
+                image={img}
+                onZoom={() => setSelectedZoomImage(img)}
+                onUpdateSignedUrl={(id, fresh) => {
+                  onUpdateFreshUrl?.(id, fresh);
+                }}
+              />
+            ))}
           </div>
         )
       ) : loading ? (
@@ -722,11 +876,13 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
         style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
       >
         <BottomNav
-          activeTab={activeTab || 'history'}
+          activeTab="history"
           onTabChange={(tab) => {
             if (tab === 'chat') {
               onGoToChat();
               onTabChange?.('chat');
+            } else if (tab === 'tools') {
+              onTabChange?.('tools');
             } else {
               onTabChange?.('history');
             }
@@ -830,6 +986,99 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               >
                 Supprimer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Zoom Modal (Agrandir l'image au clic) */}
+      {selectedZoomImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in select-none"
+          onClick={() => setSelectedZoomImage(null)}
+        >
+          <div
+            className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden select-text"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-4 sm:px-5 py-3 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                  {selectedZoomImage.mode || 'Image'}
+                </span>
+                {(selectedZoomImage.modele === 'premium' || selectedZoomImage.qualite === 'premium') && (
+                  <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500 text-white shadow-xs">
+                    Premium
+                  </span>
+                )}
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                  {formatFrenchDate(selectedZoomImage.created_at)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedZoomImage(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
+                aria-label="Fermer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Image Display */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-950 flex flex-col items-center justify-center min-h-[220px]">
+              {selectedZoomImage.signedUrl ? (
+                <img
+                  src={selectedZoomImage.signedUrl}
+                  alt={selectedZoomImage.prompt || 'Image agrandie'}
+                  className="max-h-[60vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
+                />
+              ) : (
+                <div className="text-slate-400 text-center py-12">
+                  <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-60" />
+                  <p className="text-xs">Image indisponible</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 space-y-3 shrink-0">
+              {selectedZoomImage.prompt && (
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed max-h-24 overflow-y-auto">
+                  « {selectedZoomImage.prompt} »
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedZoomImage(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition cursor-pointer"
+                >
+                  Fermer
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (selectedZoomImage) {
+                      let url = selectedZoomImage.signedUrl;
+                      if (!url && selectedZoomImage.chemin) {
+                        url = (await refreshImageSignedUrl(selectedZoomImage.chemin)) || undefined;
+                      }
+                      if (url) {
+                        const filename = getImageFilename(selectedZoomImage.chemin, selectedZoomImage.created_at);
+                        await downloadFreshImage(url, filename);
+                      }
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Télécharger</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

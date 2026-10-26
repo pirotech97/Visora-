@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { Chat } from './components/Chat';
+import { ToolsScreen } from './components/ToolsScreen';
 import { HistoryScreen } from './components/HistoryScreen';
 import { ProfileScreen } from './components/ProfileScreen';
 import { SettingsScreen } from './components/SettingsScreen';
@@ -12,9 +13,11 @@ import {
   initSupabase,
   restoreSessionUser,
   subscribeToAuthState,
-  fetchUserCredits
+  fetchUserCredits,
+  fetchUserImages,
+  fetchSingleImageRecord
 } from './services/supabase';
-import type { UserProfile, AppTab } from './types';
+import type { UserProfile, AppTab, ImageHistoryRecord, GeneratedImagePayload } from './types';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -27,6 +30,28 @@ export default function App() {
   const [credits, setCredits] = useState<number | null>(null);
   const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
   const isVoluntarySignOut = React.useRef(false);
+
+  // Images state (source de vérité : table "images", adresses fraîches)
+  const [images, setImages] = useState<ImageHistoryRecord[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [imagesError, setImagesError] = useState<string | null>(null);
+
+  const loadUserImages = async () => {
+    setLoadingImages(true);
+    setImagesError(null);
+    try {
+      const res = await fetchUserImages();
+      if (res.error) {
+        setImagesError('Impossible de charger tes images. Réessaie.');
+      } else {
+        setImages(res.data);
+      }
+    } catch {
+      setImagesError('Impossible de charger tes images. Réessaie.');
+    } finally {
+      setLoadingImages(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -57,6 +82,7 @@ export default function App() {
         const sessionUser = await restoreSessionUser();
         if (sessionUser) {
           setUser(sessionUser);
+          loadUserImages();
           const c = await fetchUserCredits(sessionUser.id);
           setCredits(c);
         }
@@ -67,10 +93,12 @@ export default function App() {
             if (updatedUser) {
               setUser(updatedUser);
               setSessionExpiredMsg(null);
+              loadUserImages();
               fetchUserCredits(updatedUser.id).then((c) => setCredits(c));
             }
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
+            setImages([]);
             if (!isVoluntarySignOut.current) {
               setSessionExpiredMsg('Ta session a expiré, reconnecte-toi.');
             }
@@ -92,10 +120,18 @@ export default function App() {
     };
   }, []);
 
+  // 2. À l'ouverture de l'onglet Historique : lire la table images
+  useEffect(() => {
+    if (activeTab === 'history' && user) {
+      loadUserImages();
+    }
+  }, [activeTab, user]);
+
   const handleAuthSuccess = (authenticatedUser: UserProfile) => {
     setSessionExpiredMsg(null);
     setUser(authenticatedUser);
     setActiveTab('chat');
+    loadUserImages();
     fetchUserCredits(authenticatedUser.id).then((c) => setCredits(c));
   };
 
@@ -103,6 +139,7 @@ export default function App() {
     isVoluntarySignOut.current = true;
     setSessionExpiredMsg(null);
     setUser(null);
+    setImages([]);
     setActiveTab('chat');
     setIsMenuOpen(false);
   };
@@ -113,6 +150,35 @@ export default function App() {
     setActiveTab('chat');
     setIsMenuOpen(false);
     setCreateImageTrigger((prev) => prev + 1);
+  };
+
+  // 5. Juste après une génération réussie, ajoute l'image à la liste sans attendre le rechargement
+  const handleImageCreated = async (payload: GeneratedImagePayload) => {
+    if (payload.image_id) {
+      const fresh = await fetchSingleImageRecord(payload.image_id);
+      if (fresh) {
+        setImages((prev) => [fresh, ...prev.filter((img) => img.id !== fresh.id)]);
+        return;
+      }
+    }
+
+    const tempRecord: ImageHistoryRecord = {
+      id: payload.image_id || 'img_' + Date.now(),
+      mode: payload.mode,
+      prompt: payload.prompt,
+      modele: payload.qualite || (payload.resolution === '2K' ? 'premium' : 'standard'),
+      chemin: `outputs/${payload.image_id || 'image'}.png`,
+      created_at: payload.created_at || new Date().toISOString(),
+      statut: 'termine',
+      signedUrl: payload.url
+    };
+    setImages((prev) => [tempRecord, ...prev.filter((img) => img.id !== tempRecord.id)]);
+  };
+
+  const handleUpdateFreshUrl = (id: string, freshUrl: string) => {
+    setImages((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, signedUrl: freshUrl } : img))
+    );
   };
 
   const handleDocumentConverted = () => {
@@ -157,6 +223,19 @@ export default function App() {
               onOpenMenu={() => setIsMenuOpen(true)}
               onCreditsChange={(c) => setCredits(c)}
               createImageTrigger={createImageTrigger}
+              onImageCreated={handleImageCreated}
+            />
+          )}
+
+          {activeTab === 'tools' && (
+            <ToolsScreen
+              user={user}
+              credits={credits}
+              onGoToChat={() => setActiveTab('chat')}
+              onGoToHistory={() => setActiveTab('history')}
+              onOpenMenu={() => setIsMenuOpen(true)}
+              onTabChange={(tab) => setActiveTab(tab)}
+              onOpenCreateImage={handleOpenCreateImage}
             />
           )}
 
@@ -169,6 +248,11 @@ export default function App() {
               onTabChange={(tab) => setActiveTab(tab)}
               onOpenMenu={() => setIsMenuOpen(true)}
               onOpenCreateImage={handleOpenCreateImage}
+              images={images}
+              loadingImages={loadingImages}
+              imagesError={imagesError}
+              onReloadImages={loadUserImages}
+              onUpdateFreshUrl={handleUpdateFreshUrl}
             />
           )}
 

@@ -491,7 +491,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     </div>
                   </button>
 
-                  {/* Ligne 3 : "Créer une image" */}
+                  {/* Ligne 3 : "Créer une image" (Réactivé pour tous les utilisateurs connectés) */}
                   <button
                     type="button"
                     onClick={() => {

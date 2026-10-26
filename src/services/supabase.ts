@@ -1204,24 +1204,6 @@ export async function invokeGenerateImageFunction(
   const demoDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(demoSvg);
   const imageId = 'img_' + Math.random().toString(36).substring(2, 9);
 
-  if (userId) {
-    saveDemoImageRecord(userId, {
-      id: imageId,
-      user_id: userId,
-      mode,
-      prompt,
-      format,
-      resolution,
-      qualite,
-      modele: qualite,
-      cout: cost,
-      chemin: `demo/${imageId}.${qualite === 'premium' ? 'jpg' : 'png'}`,
-      statut: 'termine',
-      created_at: new Date().toISOString(),
-      signedUrl: demoDataUrl
-    });
-  }
-
   return {
     image_id: imageId,
     url: demoDataUrl,
@@ -1231,102 +1213,181 @@ export async function invokeGenerateImageFunction(
   };
 }
 
-export function saveDemoImageRecord(userId: string, record: any): void {
-  try {
-    const key = 'visora_demo_images_' + userId;
-    const existing = localStorage.getItem(key);
-    let list: any[] = [];
-    if (existing) {
-      list = JSON.parse(existing);
-    }
-    list.unshift(record);
-    localStorage.setItem(key, JSON.stringify(list.slice(0, 50)));
-  } catch (e) {
-    console.warn('Error saving demo image:', e);
+/**
+ * Lit les images depuis la table Supabase "images" (source de vérité)
+ * et génère des adresses signées fraîches valables 3600 secondes via une seule requête batch.
+ * N'enregistre JAMAIS d'adresse signée dans un stockage local ou persistant.
+ */
+export async function fetchUserImages(): Promise<{ data: import('../types').ImageHistoryRecord[]; error: string | null }> {
+  if (!isSupabaseReady() || !supabaseClient) {
+    return {
+      data: [],
+      error: "Configuration manquante : l'adresse ou la clé du projet n'est pas définie."
+    };
   }
-}
 
-export async function fetchUserImages(userId: string): Promise<import('../types').ImageHistoryRecord[]> {
-  if (isSupabaseReady() && supabaseClient) {
-    const client = supabaseClient;
-    try {
-      const { data, error } = await client
-        .from('images')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('statut', 'termine')
-        .order('created_at', { ascending: false });
+  try {
+    // 2. Au chargement et à l'ouverture de l'onglet Historique :
+    const { data, error } = await supabaseClient
+      .from('images')
+      .select('id, mode, prompt, modele, chemin, created_at')
+      .eq('statut', 'termine')
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-      if (!error && Array.isArray(data)) {
-        const resolved = await Promise.all(
-          data.map(async (row: any) => {
-            let signedUrl = row.url || '';
-            if (row.chemin) {
-              try {
-                const { data: signData } = await client.storage
-                  .from('images')
-                  .createSignedUrl(row.chemin, 3600);
-                if (signData?.signedUrl) {
-                  signedUrl = signData.signedUrl;
-                }
-              } catch (e) {
-                console.warn('Error getting signed url for image:', e);
-              }
+    if (error) {
+      console.warn('Erreur lecture table images:', error.message);
+      return { data: [], error: error.message };
+    }
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return { data: [], error: null };
+    }
+
+    // Extraction des chemins pour la requête de signature groupée
+    const chemins = data
+      .map((row: any) => row.chemin)
+      .filter((c: any): c is string => typeof c === 'string' && c.trim().length > 0);
+
+    const signedUrlsMap = new Map<string, string>();
+
+    // 3. Crée une adresse fraîche en une seule requête batch pour la liste
+    if (chemins.length > 0) {
+      try {
+        const { data: signResult, error: signError } = await supabaseClient.storage
+          .from('images')
+          .createSignedUrls(chemins, 3600);
+
+        if (!signError && Array.isArray(signResult)) {
+          signResult.forEach((item: any) => {
+            if (item && item.signedUrl && item.path) {
+              signedUrlsMap.set(item.path, item.signedUrl);
+              signedUrlsMap.set(item.path.replace(/^\/+/, ''), item.signedUrl);
             }
-            return {
-              id: row.id,
-              user_id: row.user_id,
-              mode: row.mode,
-              prompt: row.prompt,
-              format: row.format,
-              resolution: row.resolution,
-              modele: row.modele,
-              qualite: row.qualite,
-              cout: row.cout,
-              chemin: row.chemin,
-              statut: row.statut,
-              created_at: row.created_at,
-              signedUrl
-            };
-          })
-        );
-        return resolved;
+          });
+        } else if (signError) {
+          console.warn('Erreur batch createSignedUrls images:', signError.message);
+        }
+      } catch (signErr) {
+        console.warn('Exception batch createSignedUrls images:', signErr);
       }
-    } catch (err) {
-      console.warn('Error querying images table:', err);
     }
-  }
 
-  // Fallback local
-  try {
-    const key = 'visora_demo_images_' + userId;
-    const existing = localStorage.getItem(key);
-    if (existing) {
-      return JSON.parse(existing);
-    }
-  } catch {
-    // ignore
+    const records: import('../types').ImageHistoryRecord[] = data.map((row: any) => {
+      const chemin = row.chemin || '';
+      const cleanChemin = chemin.replace(/^\/+/, '');
+      const signedUrl = signedUrlsMap.get(chemin) || signedUrlsMap.get(cleanChemin) || undefined;
+
+      return {
+        id: row.id,
+        mode: row.mode,
+        prompt: row.prompt,
+        modele: row.modele,
+        chemin: chemin,
+        statut: 'termine',
+        created_at: row.created_at,
+        signedUrl
+      };
+    });
+
+    return { data: records, error: null };
+  } catch (err: any) {
+    console.warn('Exception fetchUserImages:', err);
+    return { data: [], error: err.message || 'Impossible de charger tes images. Réessaie.' };
   }
-  return [];
 }
 
-export async function downloadImageFile(url: string, isPremium = false, customName?: string): Promise<void> {
-  const now = new Date();
-  const dateStr = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    '-',
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0')
-  ].join('');
-
-  const ext = isPremium ? 'jpg' : 'png';
-  const filename = customName || `visora-image-${dateStr}.${ext}`;
-
+/**
+ * Régénère une adresse fraîche pour un chemin d'image individuel
+ * si le lien initial a expiré ou a échoué.
+ */
+export async function refreshImageSignedUrl(chemin: string): Promise<string | null> {
+  if (!isSupabaseReady() || !supabaseClient || !chemin) return null;
   try {
-    const res = await fetch(url);
+    const cleanChemin = chemin.replace(/^\/+/, '');
+    const { data, error } = await supabaseClient.storage
+      .from('images')
+      .createSignedUrl(cleanChemin, 3600);
+
+    if (!error && data?.signedUrl) {
+      return data.signedUrl;
+    }
+    return null;
+  } catch (e) {
+    console.warn('refreshImageSignedUrl error:', e);
+    return null;
+  }
+}
+
+/**
+ * Récupère un enregistrement fraîchement créé depuis la table "images"
+ * avec son adresse signée fraîche.
+ */
+export async function fetchSingleImageRecord(imageId: string): Promise<import('../types').ImageHistoryRecord | null> {
+  if (!isSupabaseReady() || !supabaseClient || !imageId) return null;
+  try {
+    const { data, error } = await supabaseClient
+      .from('images')
+      .select('id, mode, prompt, modele, chemin, created_at')
+      .eq('id', imageId)
+      .maybeSingle();
+
+    if (!error && data) {
+      let freshUrl: string | undefined = undefined;
+      if (data.chemin) {
+        freshUrl = (await refreshImageSignedUrl(data.chemin)) || undefined;
+      }
+      return {
+        id: data.id,
+        mode: data.mode,
+        prompt: data.prompt,
+        modele: data.modele,
+        chemin: data.chemin,
+        statut: 'termine',
+        created_at: data.created_at,
+        signedUrl: freshUrl
+      };
+    }
+  } catch (e) {
+    console.warn('fetchSingleImageRecord error:', e);
+  }
+  return null;
+}
+
+/**
+ * Génère le nom de fichier normé : visora-image-{date} avec l'extension du chemin
+ */
+export function getImageFilename(chemin: string, created_at?: string): string {
+  let ext = 'png';
+  if (chemin) {
+    const parts = chemin.split('.');
+    if (parts.length > 1) {
+      const candidate = parts[parts.length - 1].toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (candidate.length >= 2 && candidate.length <= 4) {
+        ext = candidate;
+      }
+    }
+  }
+
+  const d = created_at ? new Date(created_at) : new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+
+  const dateStr = `${year}-${month}-${day}-${hours}${minutes}${seconds}`;
+  return `visora-image-${dateStr}.${ext}`;
+}
+
+/**
+ * Télécharge un fichier image depuis son adresse fraîche
+ */
+export async function downloadFreshImage(freshUrl: string, filename: string): Promise<void> {
+  try {
+    const res = await fetch(freshUrl);
+    if (!res.ok) throw new Error('Échec téléchargement image');
     const blob = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1337,17 +1398,25 @@ export async function downloadImageFile(url: string, isPremium = false, customNa
     setTimeout(() => {
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
-    }, 300);
+    }, 400);
   } catch {
     const link = document.createElement('a');
-    link.href = url;
+    link.href = freshUrl;
     link.download = filename;
     link.target = '_blank';
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {
       document.body.removeChild(link);
-    }, 300);
+    }, 400);
   }
+}
+
+/**
+ * Rétrocompatibilité : télécharger une image
+ */
+export async function downloadImageFile(url: string, isPremium = false, customName?: string): Promise<void> {
+  const fallbackFilename = customName || getImageFilename(isPremium ? 'image.jpg' : 'image.png');
+  return downloadFreshImage(url, fallbackFilename);
 }
 

@@ -78,7 +78,7 @@ export interface GeneratedImagePayload {
 
 export interface ImageHistoryRecord {
   id: string;
-  user_id: string;
+  user_id?: string;
   mode?: string;
   prompt?: string;
   format?: string;
@@ -87,7 +87,7 @@ export interface ImageHistoryRecord {
   qualite?: string;
   cout?: number;
   chemin: string;
-  statut: string;
+  statut?: string;
   created_at: string;
   signedUrl?: string;
 }
@@ -125,7 +125,7 @@ export interface ExtractResult {
   isInsufficientCredits?: boolean;
 }
 
-export type AppTab = 'chat' | 'history' | 'profile' | 'settings';
+export type AppTab = 'chat' | 'tools' | 'history' | 'profile' | 'settings';
 
 export interface SignUpData {
   nom: string;
