@@ -35,6 +35,19 @@
 
   /* Hauteur dynamique avec repli */
   --vvh: 100dvh;
+
+  /* ==========================================================================
+     PALETTE 60-30-10 LANDING PAGE VISORA
+     ========================================================================== */
+  --lp-dominante: #F8FAFC;
+  --lp-secondaire: #E3ECFB;
+  --lp-accent: #2563EB;
+  --lp-accent-texte: #FFFFFF;
+  --lp-texte-principal: #0F172A;
+  --lp-texte-secondaire: #475569;
+  --lp-bordure: #CBD5E1;
+  --lp-succes: #16A34A;
+  --lp-erreur: #DC2626;
 }
 
 html,
@@ -86,6 +99,17 @@ body {
     --danger-fond: rgba(127, 29, 29, 0.4);
     --danger-texte: #fecaca;
     --danger-bordure: rgba(239, 68, 68, 0.5);
+
+    /* Palette 60-30-10 Landing Page (Mode sombre) */
+    --lp-dominante: #0B1220;
+    --lp-secondaire: #16223A;
+    --lp-accent: #3B82F6;
+    --lp-accent-texte: #0B1220;
+    --lp-texte-principal: #E2E8F0;
+    --lp-texte-secondaire: #94A3B8;
+    --lp-bordure: #26334a;
+    --lp-succes: #16A34A;
+    --lp-erreur: #DC2626;
   }
 }
 
@@ -117,6 +141,17 @@ body {
   --danger-fond: rgba(127, 29, 29, 0.4);
   --danger-texte: #fecaca;
   --danger-bordure: rgba(239, 68, 68, 0.5);
+
+  /* Palette 60-30-10 Landing Page (Mode sombre) */
+  --lp-dominante: #0B1220;
+  --lp-secondaire: #16223A;
+  --lp-accent: #3B82F6;
+  --lp-accent-texte: #0B1220;
+  --lp-texte-principal: #E2E8F0;
+  --lp-texte-secondaire: #94A3B8;
+  --lp-bordure: #26334a;
+  --lp-succes: #16A34A;
+  --lp-erreur: #DC2626;
 }
 
 /* ==========================================================================

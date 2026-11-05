@@ -8,7 +8,7 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
   return (
-    <nav className="w-full flex items-center justify-around h-11 max-h-[48px] select-none gap-1">
+    <nav className="w-full flex items-center justify-around h-11 max-h-[48px] select-none gap-1 lg:hidden">
       <button
         type="button"
         onClick={() => onTabChange('chat')}

@@ -12,7 +12,7 @@ import {
   Image as ImageIcon,
   Menu
 } from 'lucide-react';
-import type { MessageRecord, DocumentRecord, UserProfile, PendingFile, ConvertedPage, AppTab } from '../types';
+import type { MessageRecord, DocumentRecord, UserProfile, PendingFile, ConvertedPage, AppTab, MediaRecord, VideoProjectRecord, VideoProjectScene } from '../types';
 import { MessageBubble } from './MessageBubble';
 import { ChatComposer } from './ChatComposer';
 import { HistoryModal } from './HistoryModal';
@@ -23,16 +23,21 @@ import { BottomNav } from './BottomNav';
 import { VisoraMascot } from './VisoraMascot';
 import { VisoraHelpModal } from './VisoraHelpModal';
 import { CreateImageModal, ImageTabMode, QualityTier } from './CreateImageModal';
+import { CreateMediaModal } from './CreateMediaModal';
 import { openWhatsAppRecharge } from '../services/constants';
 import { processDocumentFile } from '../services/pdfConverter';
 import { convertDocxToPdfBlob } from '../services/docxToPdf';
 import { cropFiguresInDocument } from '../services/figureCropper';
 import {
+  getSupabase,
   insertDocumentRecord,
   insertMessageRecord,
   fetchUserMessages,
   fetchUserDocuments,
   fetchUserCredits,
+  fetchUserVideoProjects,
+  fetchRecentUserMedias,
+  fetchProjectTitle,
   updateDocumentJson,
   uploadFileToUserStorage,
   invokeExtractFunction,
@@ -87,6 +92,15 @@ export const Chat: React.FC<ChatProps> = ({
     quality?: QualityTier;
   }>({});
   const [confirmRegeneratePayload, setConfirmRegeneratePayload] = useState<GeneratedImagePayload | null>(null);
+
+  // Modal "Créer une vidéo / audio / musique"
+  const [isCreateMediaModalOpen, setIsCreateMediaModalOpen] = useState(false);
+  const [createMediaInitialTab, setCreateMediaInitialTab] = useState<'video' | 'audio' | 'musique'>('video');
+
+  const handleOpenCreateMedia = (tab: 'video' | 'audio' | 'musique' = 'video') => {
+    setCreateMediaInitialTab(tab);
+    setIsCreateMediaModalOpen(true);
+  };
 
   useEffect(() => {
     if (createImageTrigger && createImageTrigger > 0) {
@@ -184,12 +198,12 @@ export const Chat: React.FC<ChatProps> = ({
     }
   };
 
-  // Après le retour de l'utilisateur sur l'app (événement de retour au premier plan),
-  // relire le solde avec supabase.rpc("mes_credits") pour afficher une recharge faite entre-temps.
+  // Après le retour de l'utilisateur sur l'app (événement de retour au premier plan ou retour sur le chat)
   useEffect(() => {
     const handleForeground = () => {
       if (document.visibilityState === 'visible') {
         refreshCredits();
+        syncMedias();
       }
     };
 
@@ -203,10 +217,288 @@ export const Chat: React.FC<ChatProps> = ({
   }, [user.id]);
 
   useEffect(() => {
+    if (activeTab === 'chat') {
+      syncMedias();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
     if (isCreditsModalOpen) {
       refreshCredits();
     }
   }, [isCreditsModalOpen]);
+
+  const activeMediaTrackingRef = useRef<Set<string>>(new Set());
+  const mediaPollingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+  const projectTitleCacheRef = useRef<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (mediaPollingTimerRef.current) {
+        clearTimeout(mediaPollingTimerRef.current);
+        mediaPollingTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  async function suivreMedia(mediaId: string) {
+    if (!mediaId || activeMediaTrackingRef.current.has(mediaId)) return;
+    activeMediaTrackingRef.current.add(mediaId);
+
+    const supabase = getSupabase();
+    const debut = Date.now();
+    const boucle = async () => {
+      if (Date.now() - debut > 20 * 60 * 1000) {
+        activeMediaTrackingRef.current.delete(mediaId);
+        return; // arrêt après 20 minutes
+      }
+      let reponse: any = null;
+      try {
+        if (supabase) {
+          const { data } = await supabase.functions.invoke("media-generer", {
+            body: { action: "statut", media_id: mediaId }
+          });
+          reponse = data;
+          console.log("media: statut", reponse);
+        }
+      } catch (e) {
+        console.log("media: erreur réseau, nouvel essai");
+      }
+
+      if (reponse?.statut === "termine") {
+        activeMediaTrackingRef.current.delete(mediaId);
+        // afficher le lecteur avec reponse.url (et url_2 pour la musique), mettre le solde à jour
+        let finalUrl = reponse.url;
+        let finalUrl2 = reponse.url_2;
+        const fichier = reponse.fichier || reponse.chemin;
+        const fichier2 = reponse.fichier_2 || reponse.chemin_2;
+
+        if (fichier && (!finalUrl || !finalUrl.startsWith('http')) && supabase) {
+          try {
+            const { data: signData } = await supabase.storage
+              .from('medias')
+              .createSignedUrl(fichier.replace(/^\/+/, ''), 3600);
+            if (signData?.signedUrl) {
+              finalUrl = signData.signedUrl;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (fichier2 && (!finalUrl2 || !finalUrl2.startsWith('http')) && supabase) {
+          try {
+            const { data: signData2 } = await supabase.storage
+              .from('medias')
+              .createSignedUrl(fichier2.replace(/^\/+/, ''), 3600);
+            if (signData2?.signedUrl) {
+              finalUrl2 = signData2.signedUrl;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        console.log("media: terminé");
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.generatedMedia?.id === mediaId
+              ? {
+                  ...msg,
+                  generatedMedia: {
+                    ...msg.generatedMedia,
+                    statut: 'termine',
+                    url: finalUrl,
+                    url_2: finalUrl2,
+                    fichier: fichier || msg.generatedMedia.fichier,
+                    fichier_2: fichier2 || (msg.generatedMedia as any).fichier_2
+                  }
+                }
+              : msg
+          )
+        );
+
+        if (typeof reponse.credits_restants === 'number') {
+          setCredits(reponse.credits_restants);
+          onCreditsChange?.(reponse.credits_restants);
+        } else {
+          refreshCredits();
+        }
+        syncMedias();
+        return;
+      }
+
+      if (reponse?.statut === "echec" || reponse?.statut === "erreur") {
+        activeMediaTrackingRef.current.delete(mediaId);
+        // afficher reponse.error, mettre le solde à jour
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.generatedMedia?.id === mediaId
+              ? {
+                  ...msg,
+                  generatedMedia: {
+                    ...msg.generatedMedia,
+                    statut: 'echec',
+                    error:
+                      reponse.error ||
+                      reponse.message ||
+                      'La création a échoué. Tes crédits ont été rendus.'
+                  }
+                }
+              : msg
+          )
+        );
+
+        if (typeof reponse.credits_restants === 'number') {
+          setCredits(reponse.credits_restants);
+          onCreditsChange?.(reponse.credits_restants);
+        } else {
+          refreshCredits();
+        }
+        syncMedias();
+        return;
+      }
+
+      setTimeout(boucle, 5000); // nouvel appel dans 5 secondes
+    };
+    boucle();
+  }
+
+  const syncMedias = async () => {
+    if (!isMountedRef.current) return;
+    if (mediaPollingTimerRef.current) {
+      clearTimeout(mediaPollingTimerRef.current);
+      mediaPollingTimerRef.current = null;
+    }
+
+    try {
+      const recentMedias = await fetchRecentUserMedias(user.id);
+      if (!isMountedRef.current) return;
+
+      // Groupes de projets
+      const projectGroups = new Map<string, MediaRecord[]>();
+      const standaloneMedias: MediaRecord[] = [];
+
+      for (const m of recentMedias) {
+        if (m.projet_id) {
+          const list = projectGroups.get(m.projet_id) || [];
+          list.push(m);
+          projectGroups.set(m.projet_id, list);
+        } else {
+          standaloneMedias.push(m);
+        }
+      }
+
+      // Récupérer les titres de projets si non en cache
+      for (const pId of projectGroups.keys()) {
+        if (!projectTitleCacheRef.current.has(pId)) {
+          const titre = await fetchProjectTitle(pId);
+          projectTitleCacheRef.current.set(pId, titre);
+        }
+      }
+
+      // Créer les messages de projets groupés
+      const projectMessages: MessageRecord[] = [];
+      for (const [pId, group] of projectGroups.entries()) {
+        const sortedScenes = [...group].sort((a, b) => (a.scene_num || 1) - (b.scene_num || 1));
+        const scenes: VideoProjectScene[] = sortedScenes.map((sc) => ({
+          id: sc.id,
+          scene_num: sc.scene_num || 1,
+          scene_nom: sc.scene_nom || `Scène ${sc.scene_num || 1}`,
+          nom: sc.scene_nom || `Scène ${sc.scene_num || 1}`,
+          prompt: sc.prompt,
+          statut: sc.statut || 'en_cours',
+          fichier: sc.fichier,
+          url: sc.url
+        }));
+
+        const earliestCreatedAt = sortedScenes[0]?.created_at || new Date().toISOString();
+        const projRecord: VideoProjectRecord = {
+          id: pId,
+          titre: projectTitleCacheRef.current.get(pId) || 'Projet vidéo',
+          statut: scenes.every((s) => s.statut === 'termine')
+            ? 'termine'
+            : scenes.some((s) => s.statut === 'en_cours')
+            ? 'en_cours'
+            : 'termine',
+          scenes,
+          created_at: earliestCreatedAt
+        };
+
+        projectMessages.push({
+          id: `proj_${pId}`,
+          user_id: user.id,
+          role: 'visora',
+          contenu: '',
+          created_at: earliestCreatedAt,
+          videoProject: projRecord
+        });
+      }
+
+      // Créer les messages de créations individuelles
+      const standaloneMessages: MessageRecord[] = standaloneMedias.map((m) => {
+        let contenu = '';
+        if (m.statut === 'en_cours') {
+          contenu =
+            m.type === 'musique'
+              ? 'La musique peut prendre 2 à 4 minutes'
+              : m.type === 'audio'
+              ? 'environ 1 minute'
+              : 'Création en cours…';
+        } else if (m.statut === 'echec' || m.statut === 'erreur') {
+          contenu = 'La création a échoué. Tes crédits ont été rendus.';
+        }
+        return {
+          id: `media_${m.id}`,
+          user_id: user.id,
+          role: 'visora',
+          contenu,
+          created_at: m.created_at || new Date().toISOString(),
+          generatedMedia: m
+        };
+      });
+
+      // Mettre à jour l'état messages classé par date
+      setMessages((prev) => {
+        const nonMedia = prev.filter(
+          (m) => !m.id.startsWith('media_') && !m.id.startsWith('proj_')
+        );
+        const combined = [...nonMedia, ...standaloneMessages, ...projectMessages];
+        combined.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        if (combined.length === 0) {
+          combined.push({
+            id: 'welcome',
+            user_id: user.id,
+            role: 'visora',
+            contenu: WELCOME_TEXT,
+            created_at: new Date().toISOString()
+          });
+        }
+        return combined;
+      });
+
+      // Reprendre le suivi pour toutes les créations "en_cours" de l'historique
+      for (const m of standaloneMedias) {
+        if (m.statut === 'en_cours' && m.id) {
+          suivreMedia(m.id);
+        }
+      }
+
+      // Relis la table toutes les 10 secondes tant qu'au moins une création est "en_cours"
+      const hasInProgress = recentMedias.some((m) => m.statut === 'en_cours');
+      if (hasInProgress && isMountedRef.current) {
+        mediaPollingTimerRef.current = setTimeout(() => {
+          syncMedias();
+        }, 10000);
+      }
+    } catch (err) {
+      console.warn('syncMedias error:', err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -224,44 +516,33 @@ export const Chat: React.FC<ChatProps> = ({
         setCreditsError(false);
       }
 
-      if (fetchedMessages.length === 0) {
-        // Initial welcome message
-        const initialMsg: MessageRecord = {
+      const docMap = new Map<string, DocumentRecord>();
+      fetchedDocs.forEach((d) => docMap.set(d.id, d));
+
+      const enriched = fetchedMessages.map((m) => {
+        if (m.document_id && docMap.has(m.document_id)) {
+          return {
+            ...m,
+            document: docMap.get(m.document_id)
+          };
+        }
+        return m;
+      });
+
+      if (!enriched.some((m) => m.role === 'visora')) {
+        enriched.unshift({
           id: 'welcome',
           user_id: user.id,
           role: 'visora',
           contenu: WELCOME_TEXT,
           created_at: new Date().toISOString()
-        };
-        setMessages([initialMsg]);
-      } else {
-        // Link document payloads to messages
-        const docMap = new Map<string, DocumentRecord>();
-        fetchedDocs.forEach((d) => docMap.set(d.id, d));
-
-        const enriched = fetchedMessages.map((m) => {
-          if (m.document_id && docMap.has(m.document_id)) {
-            return {
-              ...m,
-              document: docMap.get(m.document_id)
-            };
-          }
-          return m;
         });
-
-        // Ensure welcome message is first if none
-        if (!enriched.some((m) => m.role === 'visora')) {
-          enriched.unshift({
-            id: 'welcome',
-            user_id: user.id,
-            role: 'visora',
-            contenu: WELCOME_TEXT,
-            created_at: new Date().toISOString()
-          });
-        }
-
-        setMessages(enriched);
       }
+
+      setMessages(enriched);
+
+      // Lis immédiatement la table medias (limit 30) et configure le suivi récursif
+      await syncMedias();
     } catch (err) {
       console.warn('Error loading chat data:', err);
     }
@@ -585,6 +866,100 @@ export const Chat: React.FC<ChatProps> = ({
     setTimeout(() => scrollToBottom(), 100);
   };
 
+
+
+  const handleMediaGenerated = async (media: MediaRecord) => {
+    const isVideo = media.type === 'video';
+    const isMusique = media.type === 'musique';
+
+    let promptDescription = '';
+    if (isVideo) {
+      promptDescription = `Créer une vidéo (${media.modele || 'rapide'}) : ${media.prompt || 'Vidéo'}`;
+    } else if (isMusique) {
+      const label =
+        media.titre ||
+        media.description?.slice(0, 80) ||
+        media.style ||
+        'Morceau musical';
+      promptDescription = `Créer une musique : ${label}`;
+    } else {
+      promptDescription = `Créer une voix (${media.voix || 'Voix 1'}) : ${media.texte?.slice(0, 80) || 'Audio'}…`;
+    }
+
+    const userMsg = await insertMessageRecord(
+      user.id,
+      'utilisateur',
+      promptDescription
+    );
+
+    const initialContent =
+      media.statut === 'en_cours'
+        ? isMusique
+          ? 'La musique peut prendre 2 à 4 minutes'
+          : media.type === 'audio'
+          ? 'environ 1 minute'
+          : 'Création en cours…'
+        : isVideo
+        ? 'Voici votre vidéo générée :'
+        : isMusique
+        ? 'Voici votre musique générée :'
+        : 'Voici votre voix générée :';
+
+    const savedMsg = await insertMessageRecord(
+      user.id,
+      'visora',
+      initialContent
+    );
+    savedMsg.generatedMedia = media;
+
+    setMessages((prev) => [...prev, userMsg, savedMsg]);
+    setTimeout(() => scrollToBottom(), 100);
+
+    // Suivi automatique du média dès la création
+    suivreMedia(media.id);
+    syncMedias();
+  };
+
+  const handleMediaUpdated = (updatedMedia: MediaRecord) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.generatedMedia?.id === updatedMedia.id
+          ? { ...msg, generatedMedia: updatedMedia }
+          : msg
+      )
+    );
+  };
+
+  const handleProjectGenerated = async (project: VideoProjectRecord) => {
+    const userMsg = await insertMessageRecord(
+      user.id,
+      'utilisateur',
+      `Créer un projet vidéo : ${project.titre || project.style || 'Plusieurs scènes'}`
+    );
+
+    const savedMsg = await insertMessageRecord(
+      user.id,
+      'visora',
+      'Projet en cours'
+    );
+    savedMsg.videoProject = project;
+
+    setMessages((prev) => [...prev, userMsg, savedMsg]);
+    setTimeout(() => scrollToBottom(), 100);
+
+    syncMedias();
+  };
+
+  const handleProjectUpdated = (updatedProject: VideoProjectRecord) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.videoProject?.id === updatedProject.id
+          ? { ...msg, videoProject: updatedProject }
+          : msg
+      )
+    );
+  };
+
   const handleExecuteRegenerate = async (payload: GeneratedImagePayload) => {
     const cost = payload.cout || (payload.qualite === 'premium' || payload.resolution === '2K' ? 2 : 1);
     if (credits !== null && credits < cost) {
@@ -700,7 +1075,7 @@ export const Chat: React.FC<ChatProps> = ({
             <button
               type="button"
               onClick={onOpenMenu}
-              className="p-1.5 sm:p-2 -ml-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
               aria-label="Ouvrir le menu"
               title="Menu principal"
             >
@@ -830,7 +1205,7 @@ export const Chat: React.FC<ChatProps> = ({
           {messages.length === 0 ? (
             /* BLOC D'ACCUEIL DU CHAT (QUAND IL N'Y A AUCUN MESSAGE) */
             <div className="flex-1 my-auto flex flex-col items-center justify-center py-4 px-1 sm:px-2 w-full empty-chat-container">
-              <div className="w-full max-w-[560px] mx-auto text-center">
+              <div className="w-full max-w-[560px] lg:max-w-2xl mx-auto text-center">
                 <div className="empty-chat-title-group mb-5 sm:mb-6">
                   <h1 className="text-2xl sm:text-[28px] font-bold text-slate-900 tracking-tight leading-snug">
                     Que veux-tu convertir aujourd'hui ?
@@ -840,8 +1215,8 @@ export const Chat: React.FC<ChatProps> = ({
                   </p>
                 </div>
 
-                {/* 4 cartes empilées (largeur maximale 560 px, espacement 12 px) */}
-                <div className="flex flex-col gap-3 text-left w-full">
+                {/* 4 cartes : empilées sur mobile (<sm), grille 2 colonnes sur tablette/desktop */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left w-full">
                   {/* 1. "Extraire un document" / "PDF ou photo → fichier Word" : même action que "Extract" du menu "+". */}
                   <button
                     type="button"
@@ -933,7 +1308,7 @@ export const Chat: React.FC<ChatProps> = ({
               </div>
             </div>
           ) : (
-            <div className="w-full max-w-[640px] mx-auto space-y-3">
+            <div className="w-full max-w-[640px] lg:max-w-3xl xl:max-w-4xl mx-auto space-y-3">
               {/* Chat Messages Feed */}
               {messages.map((message) => (
                 <MessageBubble
@@ -943,6 +1318,9 @@ export const Chat: React.FC<ChatProps> = ({
                   userCredits={credits ?? 0}
                   onRegenerateImage={(payload) => setConfirmRegeneratePayload(payload)}
                   onModifyImage={handleModifyImage}
+                  onMediaUpdated={handleMediaUpdated}
+                  onProjectUpdated={handleProjectUpdated}
+                  onRefreshCredits={refreshCredits}
                 />
               ))}
             </div>
@@ -980,8 +1358,8 @@ export const Chat: React.FC<ChatProps> = ({
       </div>
 
       {/* Pied de Page Épinglé */}
-      <footer className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 z-30 px-2 pt-1.5 pb-1 select-none">
-        <div className="max-w-[640px] mx-auto w-full">
+      <footer className="shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 z-30 px-2 pt-1.5 pb-1 lg:py-3 lg:px-4 select-none">
+        <div className="max-w-[640px] lg:max-w-3xl xl:max-w-4xl mx-auto w-full">
           <ChatComposer
             inputText={inputText}
             setInputText={setInputText}
@@ -996,9 +1374,10 @@ export const Chat: React.FC<ChatProps> = ({
             userEmail={user.email}
             onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
             onOpenCreateImage={() => handleOpenCreateImage({ mode: 'image' })}
+            onOpenCreateMedia={handleOpenCreateMedia}
           />
 
-          <div className="mt-0.5">
+          <div className="mt-0.5 lg:hidden">
             <BottomNav
               activeTab="chat"
               onTabChange={(tab) => {
@@ -1064,6 +1443,22 @@ export const Chat: React.FC<ChatProps> = ({
         initialPrompt={createImageInitialData.prompt}
         initialFormat={createImageInitialData.format}
         initialQuality={createImageInitialData.quality}
+      />
+
+      {/* Modal Créer une vidéo / audio */}
+      <CreateMediaModal
+        isOpen={isCreateMediaModalOpen}
+        onClose={() => setIsCreateMediaModalOpen(false)}
+        user={user}
+        credits={credits}
+        onCreditsChange={(c) => {
+          setCredits(c);
+          onCreditsChange?.(c);
+        }}
+        onMediaGenerated={handleMediaGenerated}
+        onProjectGenerated={handleProjectGenerated}
+        onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+        initialTab={createMediaInitialTab}
       />
 
       {/* Confirmation préalable du coût pour la régénération */}

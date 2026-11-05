@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   MessageSquare,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { AppTab, UserProfile } from '../types';
 import { RechargeButton } from './RechargeButton';
+import { getSupabase } from '../services/supabase';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -41,6 +42,35 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   onOpenCreateImage
 }) => {
   // Fermeture avec la touche Échap
+  const [showAdminLink, setShowAdminLink] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkAdminStatus() {
+      if (!user) {
+        setShowAdminLink(false);
+        return;
+      }
+      const client = getSupabase();
+      if (!client) return;
+      try {
+        const { data, error } = await client
+          .from('administrateurs')
+          .select('user_id')
+          .maybeSingle();
+        if (isMounted) {
+          setShowAdminLink(Boolean(!error && data?.user_id));
+        }
+      } catch {
+        if (isMounted) setShowAdminLink(false);
+      }
+    }
+    checkAdminStatus();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, isOpen]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -61,7 +91,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="lg:hidden fixed inset-0 z-50 flex">
       {/* Backdrop sombre */}
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-2xs transition-opacity animate-in fade-in duration-200"
@@ -229,6 +259,24 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             </div>
             <ChevronRight className="w-4 h-4 opacity-40" />
           </button>
+
+          {showAdminLink && (
+            <button
+              type="button"
+              onClick={() => handleNavClick('admin')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-semibold transition cursor-pointer ${
+                activeTab === 'admin'
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 shadow-2xs'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="w-4 h-4 text-red-600 dark:text-red-400" />
+                <span>Admin</span>
+              </div>
+              <ChevronRight className="w-4 h-4 opacity-40" />
+            </button>
+          )}
 
           <div className="pt-2 my-2 border-t border-slate-100 dark:border-slate-800" />
 

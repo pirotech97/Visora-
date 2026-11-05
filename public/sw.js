@@ -1,7 +1,9 @@
-const CACHE_NAME = 'visora-pwa-v2';
+const CACHE_NAME = 'visora-pwa-v5';
 
-// Fichiers statiques annexes précachés (hors HTML qui doit toujours être revalidé en réseau)
+// Fichiers statiques annexes et page d'accueil précachés
 const PRECACHE_ASSETS = [
+  '/',
+  '/index.html',
   '/manifest.webmanifest',
   '/icon.svg',
   '/apple-touch-icon.png',
@@ -51,8 +53,19 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // 1. Ne jamais intercepter ni mettre en cache les requêtes API ou Supabase
-  if (url.pathname.startsWith('/api') || url.hostname.includes('supabase')) {
+  // 1. Ne jamais intercepter ni mettre en cache la réinitialisation de mot de passe, les requêtes API, Supabase ou les scripts de dev Vite
+  if (
+    url.pathname.includes('reinitialiser-mot-de-passe') ||
+    url.pathname.startsWith('/api') ||
+    url.hostname.includes('supabase') ||
+    url.pathname.includes('admin-api') ||
+    url.pathname.includes('node_modules') ||
+    url.pathname.includes('@vite') ||
+    url.pathname.includes('@fs') ||
+    url.pathname.includes('@id') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.includes('.vite')
+  ) {
     return;
   }
 

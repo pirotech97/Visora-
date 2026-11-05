@@ -8,7 +8,10 @@ import {
   Zap,
   X,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Video,
+  Mic,
+  Music
 } from 'lucide-react';
 import type { PendingFile, ConvertedPage } from '../types';
 import { processDocumentFile } from '../services/pdfConverter';
@@ -36,6 +39,7 @@ interface ChatComposerProps {
   userEmail?: string;
   onOpenRecharge?: () => void;
   onOpenCreateImage?: () => void;
+  onOpenCreateMedia?: (initialTab?: 'video' | 'audio' | 'musique') => void;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -51,7 +55,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   credits = null,
   userEmail = '',
   onOpenRecharge,
-  onOpenCreateImage
+  onOpenCreateImage,
+  onOpenCreateMedia
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAlertDismissed, setIsAlertDismissed] = useState(false);
@@ -82,15 +87,16 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }
   }, [pendingFile, credits]);
 
+  const desktopMenuRef = useRef<HTMLDivElement>(null);
+
   // Fermeture du menu au clic en dehors ou avec la touche Échap
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target as Node) &&
-        plusButtonRef.current &&
-        !plusButtonRef.current.contains(event.target as Node)
-      ) {
+      const inMobile = menuRef.current?.contains(event.target as Node);
+      const inDesktop = desktopMenuRef.current?.contains(event.target as Node);
+      const inPlus = plusButtonRef.current?.contains(event.target as Node);
+
+      if (!inMobile && !inDesktop && !inPlus) {
         setIsMenuOpen(false);
       }
     }
@@ -434,91 +440,335 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               />
             </button>
 
-            {/* Menu flottant au-dessus du bouton "+", sans être coupé par les bords de l'écran */}
+            {/* Menu flottant sur mobile, boîte de dialogue centrée sur tablette et grand écran (md et plus) */}
             {isMenuOpen && (
-              <div
-                ref={menuRef}
-                className="absolute bottom-full mb-2 left-0 z-50 w-72 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-slate-200/90 p-1.5 animate-in fade-in zoom-in-95"
-              >
-                <div className="space-y-1">
-                  {/* Ligne 1 : "Ajouter un fichier" */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      addFileInputRef.current?.click();
-                    }}
-                    disabled={isProcessing}
-                    className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-slate-50 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 group-hover:bg-slate-800 group-hover:text-white transition">
-                      <Paperclip className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="block text-xs font-bold text-slate-900 group-hover:text-slate-800">
-                        Ajouter un fichier
-                      </span>
-                      <p className="text-[11px] text-slate-500 truncate">
-                        Mettre en attente dans la pastille
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Ligne 2 : "Extract" */}
-                  <button
-                    type="button"
-                    onClick={handleExtractClick}
-                    disabled={isProcessing}
-                    className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-blue-50/80 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition">
-                      <Zap className="w-4 h-4 fill-current" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 flex items-center justify-between">
-                        <span>Extract</span>
-                        {pendingFile && (
-                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md font-semibold">
-                            Prêt
-                          </span>
-                        )}
+              <>
+                {/* 1. Version mobile : menu au-dessus du bouton "+" */}
+                <div
+                  ref={menuRef}
+                  className="md:hidden absolute bottom-full mb-2 left-0 z-50 w-72 max-w-[calc(100vw-32px)] bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-1.5 animate-in fade-in zoom-in-95"
+                >
+                  <div className="space-y-1">
+                    {/* Ligne 1 : "Ajouter un fichier" */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        addFileInputRef.current?.click();
+                      }}
+                      disabled={isProcessing}
+                      className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0 group-hover:bg-slate-800 group-hover:text-white transition">
+                        <Paperclip className="w-4 h-4" />
                       </div>
-                      <p className="text-[11px] text-slate-500 truncate">
-                        {pendingFile
-                          ? "Lancer l'extraction du document"
-                          : 'Choisir un document et extraire'}
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Ligne 3 : "Créer une image" (Réactivé pour tous les utilisateurs connectés) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      onOpenCreateImage?.();
-                    }}
-                    disabled={isProcessing}
-                    className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-slate-50 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
-                    title="Générer une image avec Visora"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition">
-                      <ImageIcon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1 flex items-center justify-between">
-                      <div>
-                        <span className="block text-xs font-semibold text-slate-800">
-                          Créer une image
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-xs font-bold text-slate-900 dark:text-white group-hover:text-slate-800">
+                          Ajouter un fichier
                         </span>
-                        <p className="text-[11px] text-slate-500">Génération d'images</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          Mettre en attente dans la pastille
+                        </p>
                       </div>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 tracking-wide uppercase">
-                        Nouveau
-                      </span>
-                    </div>
-                  </button>
+                    </button>
+
+                    {/* Ligne 2 : "Extract" */}
+                    <button
+                      type="button"
+                      onClick={handleExtractClick}
+                      disabled={isProcessing}
+                      className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-blue-50/80 dark:hover:bg-blue-950/60 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition">
+                        <Zap className="w-4 h-4 fill-current" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-700 flex items-center justify-between">
+                          <span>Extract</span>
+                          {pendingFile && (
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md font-semibold">
+                              Prêt
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {pendingFile
+                            ? "Lancer l'extraction du document"
+                            : 'Choisir un document et extraire'}
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Ligne 3 : "Créer une image" */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onOpenCreateImage?.();
+                      }}
+                      disabled={isProcessing}
+                      className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
+                      title="Générer une image avec Visora"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 flex items-center justify-between">
+                        <div>
+                          <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+                            Créer une image
+                          </span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Génération d'images</p>
+                        </div>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 tracking-wide uppercase">
+                          Nouveau
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Ligne 4 : "Créer une vidéo" */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onOpenCreateMedia?.('video');
+                      }}
+                      disabled={isProcessing}
+                      className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
+                      title="Générer une vidéo par IA"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition">
+                        <Video className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 flex items-center justify-between">
+                        <div>
+                          <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+                            Créer une vidéo
+                          </span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Vidéo par IA</p>
+                        </div>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 tracking-wide uppercase">
+                          Nouveau
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Ligne 5 : "Voix" */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onOpenCreateMedia?.('audio');
+                      }}
+                      disabled={isProcessing}
+                      className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
+                      title="Texte vers audio parlé"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 group-hover:bg-teal-600 group-hover:text-white transition">
+                        <Mic className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 flex items-center justify-between">
+                        <div>
+                          <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+                            Voix
+                          </span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Texte → audio</p>
+                        </div>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-600 dark:text-teal-400 tracking-wide uppercase">
+                          Nouveau
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Ligne 6 : "Musique" */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onOpenCreateMedia?.('musique');
+                      }}
+                      disabled={isProcessing}
+                      className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-[0.99] group cursor-pointer disabled:opacity-40"
+                      title="Composition musicale par IA"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition">
+                        <Music className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 flex items-center justify-between">
+                        <div>
+                          <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+                            Musique
+                          </span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Morceau musical par IA</p>
+                        </div>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 tracking-wide uppercase">
+                          Nouveau
+                        </span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+                {/* 2. Version tablette et grand écran (md et plus) : boîte de dialogue centrée avec fond assombri */}
+                <div
+                  className="hidden md:fixed md:inset-0 md:z-50 md:flex md:items-center md:justify-center md:bg-black/60 md:backdrop-blur-xs md:p-4 animate-in fade-in duration-200 select-none"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <div
+                    ref={desktopMenuRef}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full max-w-[540px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-6 animate-in zoom-in-95 duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Menu d'actions Visora"
+                  >
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                          <Plus className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-base text-slate-900 dark:text-white leading-tight">
+                            Créer avec Visora
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Choisis une action ou un outil de création
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                        aria-label="Fermer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Grille 2 colonnes sur tablette et ordinateur */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* 1. Ajouter un fichier */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          addFileInputRef.current?.click();
+                        }}
+                        disabled={isProcessing}
+                        className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-left transition cursor-pointer group"
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center mb-2.5 group-hover:bg-slate-800 group-hover:text-white transition">
+                          <Paperclip className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Ajouter un fichier</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Mettre en attente dans la pastille
+                        </p>
+                      </button>
+
+                      {/* 2. Extract */}
+                      <button
+                        type="button"
+                        onClick={handleExtractClick}
+                        disabled={isProcessing}
+                        className="p-3.5 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 hover:bg-blue-50 dark:hover:bg-blue-950/70 border border-blue-200/80 dark:border-blue-900/60 text-left transition cursor-pointer group"
+                      >
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                            <Zap className="w-4 h-4 fill-current" />
+                          </div>
+                          {pendingFile && (
+                            <span className="text-[10px] bg-blue-100 dark:bg-blue-900/80 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md font-bold">
+                              Prêt
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Extract</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Convertir un PDF ou photo en Word
+                        </p>
+                      </button>
+
+                      {/* 3. Créer une image */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          onOpenCreateImage?.();
+                        }}
+                        disabled={isProcessing}
+                        className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-left transition cursor-pointer group"
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2.5 group-hover:bg-purple-600 group-hover:text-white transition">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Créer une image</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Images, affiches et visuels IA
+                        </p>
+                      </button>
+
+                      {/* 4. Créer une vidéo */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          onOpenCreateMedia?.('video');
+                        }}
+                        disabled={isProcessing}
+                        className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-left transition cursor-pointer group"
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-2.5 group-hover:bg-indigo-600 group-hover:text-white transition">
+                          <Video className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Créer une vidéo</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Vidéo courte avec ou sans son
+                        </p>
+                      </button>
+
+                      {/* 5. Voix */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          onOpenCreateMedia?.('audio');
+                        }}
+                        disabled={isProcessing}
+                        className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-left transition cursor-pointer group"
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-2.5 group-hover:bg-teal-600 group-hover:text-white transition">
+                          <Mic className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Voix</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Texte vers audio parlé
+                        </p>
+                      </button>
+
+                      {/* 6. Musique */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          onOpenCreateMedia?.('musique');
+                        }}
+                        disabled={isProcessing}
+                        className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-left transition cursor-pointer group"
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-pink-100 dark:bg-pink-950 text-pink-600 dark:text-pink-400 flex items-center justify-center mb-2.5 group-hover:bg-pink-600 group-hover:text-white transition">
+                          <Music className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">Musique</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Morceau musical avec paroles
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </div>
 

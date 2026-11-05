@@ -57,13 +57,19 @@ export function isValidSupabaseKey(key: string): boolean {
 }
 
 // ============================================================================
-// INSTANCE UNIQUE DU CLIENT SUPABASE
+// INSTANCE UNIQUE DU CLIENT SUPABASE (SINGLETON globalThis)
 // ============================================================================
 
-let currentUrl = '';
-let currentAnonKey = '';
-let supabaseInstance: SupabaseClient | null = null;
-let isConfiguredState = false;
+declare global {
+  var __visora_supabase: SupabaseClient | undefined;
+  var __visora_supabase_url: string | undefined;
+  var __visora_supabase_key: string | undefined;
+}
+
+let currentUrl = (typeof globalThis !== 'undefined' && globalThis.__visora_supabase_url) || '';
+let currentAnonKey = (typeof globalThis !== 'undefined' && globalThis.__visora_supabase_key) || '';
+let supabaseInstance: SupabaseClient | null = (typeof globalThis !== 'undefined' && globalThis.__visora_supabase) || null;
+let isConfiguredState = Boolean(supabaseInstance && currentUrl && currentAnonKey);
 
 export function isSupabaseConfigured(): boolean {
   return isConfiguredState && supabaseInstance !== null;
@@ -95,11 +101,27 @@ export function initSupabase(overrideUrl?: string, overrideKey?: string): boolea
 
   if (!isValidSupabaseUrl(candidateUrl) || !isValidSupabaseKey(candidateKey)) {
     console.warn('Variables Supabase absentes');
-    supabaseInstance = null;
-    isConfiguredState = false;
-    currentUrl = '';
-    currentAnonKey = '';
+    if (!supabaseInstance) {
+      supabaseInstance = null;
+      isConfiguredState = false;
+      currentUrl = '';
+      currentAnonKey = '';
+    }
     return false;
+  }
+
+  // Si une instance existe déjà avec les mêmes identifiants (y compris après HMR), on la réutilise
+  if (
+    typeof globalThis !== 'undefined' &&
+    globalThis.__visora_supabase &&
+    globalThis.__visora_supabase_url === candidateUrl &&
+    globalThis.__visora_supabase_key === candidateKey
+  ) {
+    supabaseInstance = globalThis.__visora_supabase;
+    currentUrl = candidateUrl;
+    currentAnonKey = candidateKey;
+    isConfiguredState = true;
+    return true;
   }
 
   try {
@@ -111,10 +133,17 @@ export function initSupabase(overrideUrl?: string, overrideKey?: string): boolea
         autoRefreshToken: true
       }
     });
+
+    if (typeof globalThis !== 'undefined') {
+      globalThis.__visora_supabase = supabaseInstance;
+      globalThis.__visora_supabase_url = candidateUrl;
+      globalThis.__visora_supabase_key = candidateKey;
+    }
+
     isConfiguredState = true;
     return true;
   } catch (err) {
-    console.warn('Variables Supabase absentes');
+    console.warn('Variables Supabase absentes', err);
     supabaseInstance = null;
     isConfiguredState = false;
     currentUrl = '';
@@ -123,12 +152,24 @@ export function initSupabase(overrideUrl?: string, overrideKey?: string): boolea
   }
 }
 
-// Initialisation au chargement du module avec les variables Vite
-initSupabase();
+// Initialisation au chargement du module uniquement si pas déjà présent sur globalThis
+if (typeof globalThis !== 'undefined' && !globalThis.__visora_supabase) {
+  initSupabase();
+}
 
 export function getSupabase(): SupabaseClient | null {
+  if (!supabaseInstance && typeof globalThis !== 'undefined' && globalThis.__visora_supabase) {
+    supabaseInstance = globalThis.__visora_supabase;
+    currentUrl = globalThis.__visora_supabase_url || '';
+    currentAnonKey = globalThis.__visora_supabase_key || '';
+    isConfiguredState = Boolean(supabaseInstance && currentUrl && currentAnonKey);
+  }
   return supabaseInstance;
 }
+
+export const supabase = (typeof globalThis !== 'undefined' && globalThis.__visora_supabase)
+  ? globalThis.__visora_supabase
+  : supabaseInstance;
 
 // Contrôle de santé discret : GET {URL}/auth/v1/health avec en-tête apikey
 export async function checkSupabaseHealth(): Promise<boolean> {

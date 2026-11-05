@@ -16,7 +16,15 @@ import type {
   CreditTransaction,
   ExtractResult,
   UserProfile,
-  SignUpData
+  SignUpData,
+  MediaOptionsResponse,
+  VideoGeneratePayload,
+  AudioGeneratePayload,
+  MediaGeneratePayload,
+  MediaRecord,
+  VideoProjectGeneratePayload,
+  VideoProjectRecord,
+  VideoProjectScene
 } from '../types';
 
 export {
@@ -311,6 +319,82 @@ export async function signOutUser(): Promise<void> {
   localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
 }
 
+export function isPasswordValid(pwd: string): boolean {
+  if (!pwd || pwd.length < 8) return false;
+  const hasLetter = /[a-zA-Z]/.test(pwd);
+  const hasNumber = /[0-9]/.test(pwd);
+  return hasLetter && hasNumber;
+}
+
+export async function resetPasswordForEmail(
+  email: string
+): Promise<{ error: string | null; rateLimited?: boolean }> {
+  if (!isSupabaseConfigured() || !supabaseClient) {
+    return { error: "Configuration manquante : l'adresse ou la clé du projet n'est pas définie." };
+  }
+
+  try {
+    const redirectTo = `${window.location.origin}/reinitialiser-mot-de-passe`;
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo
+    });
+
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      const status = (error as any).status;
+      if (
+        status === 429 ||
+        msg.includes('rate limit') ||
+        msg.includes('too many requests') ||
+        msg.includes('over_email_send_rate_limit')
+      ) {
+        return { error: 'Trop de demandes. Réessaie dans quelques minutes.', rateLimited: true };
+      }
+      // Toujours neutre pour ne pas divulguer si un compte existe
+      return { error: null };
+    }
+
+    return { error: null };
+  } catch (err: any) {
+    const msg = (err?.message || '').toLowerCase();
+    if (err?.status === 429 || msg.includes('rate limit') || msg.includes('too many requests')) {
+      return { error: 'Trop de demandes. Réessaie dans quelques minutes.', rateLimited: true };
+    }
+    return { error: null };
+  }
+}
+
+export async function updateUserPassword(
+  password: string
+): Promise<{ error: string | null; isSamePassword?: boolean }> {
+  if (!isSupabaseConfigured() || !supabaseClient) {
+    return { error: "Configuration manquante : l'adresse ou la clé du projet n'est pas définie." };
+  }
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password });
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      if (
+        msg.includes('same password') ||
+        msg.includes('different') ||
+        msg.includes('same_password') ||
+        msg.includes('should be different')
+      ) {
+        return { error: "Choisis un mot de passe différent de l'ancien.", isSamePassword: true };
+      }
+      return { error: "Impossible de modifier le mot de passe. Demande un nouveau lien." };
+    }
+    return { error: null };
+  } catch (err: any) {
+    const msg = (err?.message || '').toLowerCase();
+    if (msg.includes('same password') || msg.includes('different') || msg.includes('same_password')) {
+      return { error: "Choisis un mot de passe différent de l'ancien.", isSamePassword: true };
+    }
+    return { error: "Impossible de modifier le mot de passe. Demande un nouveau lien." };
+  }
+}
+
 export async function getCurrentUser(): Promise<UserProfile | null> {
   if (isSupabaseReady() && supabaseClient) {
     let authUser: User | null = null;
@@ -441,29 +525,47 @@ export async function updateUserProfile(
 export async function fetchUserCredits(userId: string): Promise<number | null> {
   if (isSupabaseReady() && supabaseClient) {
     try {
-      const { data, error } = await supabaseClient.rpc('mes_credits');
+      // 1. Lecture directe depuis la table credits avec filtrage par user_id
+      let query = supabaseClient
+        .from('credits')
+        .select('solde');
 
-      if (!error && typeof data === 'number') {
-        return data;
-      }
-
-      if (error) {
-        console.warn('RPC mes_credits error, attempting table fallback:', error);
-        const { data: tableData, error: tableError } = await supabaseClient
-          .from('credits')
-          .select('solde')
-          .single();
-
-        if (!tableError && tableData && typeof tableData.solde === 'number') {
-          return tableData.solde;
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const currentUid = sessionData?.session?.user?.id;
+        if (currentUid) {
+          query = query.eq('user_id', currentUid);
         }
-
-        console.error('Error fetching credits from Supabase:', error || tableError);
-        return null;
       }
-    } catch (err) {
-      console.error('Error fetching credits from Supabase:', err);
-      return null;
+
+      const { data: tableData, error: tableError } = await query.maybeSingle();
+
+      if (!tableError && tableData && typeof tableData.solde === 'number') {
+        return tableData.solde;
+      }
+
+      // Si la requête a réussi et qu'aucun enregistrement n'existe encore pour l'utilisateur
+      if (!tableError && !tableData) {
+        return 0;
+      }
+
+      // 2. Si la table est restreinte par RLS, tentative de repli via la fonction RPC mes_credits
+      if (tableError) {
+        try {
+          const { data: rpcData, error: rpcError } = await supabaseClient.rpc('mes_credits');
+          if (!rpcError && typeof rpcData === 'number') {
+            return rpcData;
+          }
+        } catch {
+          // RPC mes_credits non définie
+        }
+        return 0;
+      }
+    } catch (err: any) {
+      console.warn('Notice fetching credits:', err?.message || err);
+      return 0;
     }
   }
 
@@ -475,11 +577,23 @@ export async function fetchUserCredits(userId: string): Promise<number | null> {
 export async function fetchCreditTransactions(userId: string): Promise<CreditTransaction[]> {
   if (isSupabaseReady() && supabaseClient) {
     try {
-      const { data, error } = await supabaseClient
+      let query = supabaseClient
         .from('credit_transactions')
         .select('delta, motif, created_at')
         .order('created_at', { ascending: false })
         .limit(20);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const currentUid = sessionData?.session?.user?.id;
+        if (currentUid) {
+          query = query.eq('user_id', currentUid);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (!error && Array.isArray(data)) {
         return data as CreditTransaction[];
@@ -586,14 +700,27 @@ export async function updateDocumentRecord(
 
 export async function updateDocumentJson(
   documentId: string,
-  json_document: DocumentData
+  json_document: DocumentData,
+  userId?: string
 ): Promise<boolean> {
   if (isSupabaseReady() && supabaseClient) {
     try {
-      const { error } = await supabaseClient
+      let query = supabaseClient
         .from('documents')
         .update({ json_document })
         .eq('id', documentId);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const currentUid = sessionData?.session?.user?.id;
+        if (currentUid) {
+          query = query.eq('user_id', currentUid);
+        }
+      }
+
+      const { error } = await query;
 
       if (error) {
         console.warn('Error updating json_document in Supabase:', error.message);
@@ -654,15 +781,27 @@ export async function fetchUserDocumentsSummary(
 }
 
 export async function fetchDocumentDetails(
-  docId: string
+  docId: string,
+  userId?: string
 ): Promise<{ json_document: import('../types').DocumentData | null; nom_fichier: string } | null> {
   if (isSupabaseReady() && supabaseClient) {
     try {
-      const { data, error } = await supabaseClient
+      let query = supabaseClient
         .from('documents')
         .select('id, nom_fichier, json_document')
-        .eq('id', docId)
-        .single();
+        .eq('id', docId);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const currentUid = sessionData?.session?.user?.id;
+        if (currentUid) {
+          query = query.eq('user_id', currentUid);
+        }
+      }
+
+      const { data, error } = await query.single();
 
       if (!error && data) {
         return {
@@ -695,13 +834,25 @@ export async function fetchDocumentDetails(
   return null;
 }
 
-export async function deleteDocumentRecord(docId: string): Promise<boolean> {
+export async function deleteDocumentRecord(docId: string, userId?: string): Promise<boolean> {
   if (isSupabaseReady() && supabaseClient) {
     try {
-      const { error } = await supabaseClient
+      let query = supabaseClient
         .from('documents')
         .delete()
         .eq('id', docId);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const currentUid = sessionData?.session?.user?.id;
+        if (currentUid) {
+          query = query.eq('user_id', currentUid);
+        }
+      }
+
+      const { error } = await query;
 
       if (!error) {
         return true;
@@ -1419,4 +1570,1023 @@ export async function downloadImageFile(url: string, isPremium = false, customNa
   const fallbackFilename = customName || getImageFilename(isPremium ? 'image.jpg' : 'image.png');
   return downloadFreshImage(url, fallbackFilename);
 }
+
+/**
+ * Génération de document administratif (CV, Lettre, Devis, Facture ou Formulaire) via Supabase Edge Function 'generer-document'
+ */
+export async function genererDocumentAdministrative(
+  type: 'cv' | 'lettre' | 'devis' | 'facture' | 'formulaire',
+  donnees: any
+): Promise<{
+  type?: 'cv' | 'lettre' | 'devis' | 'facture' | 'formulaire';
+  document?: any;
+  credits_restants?: number;
+  cout?: number;
+  error?: string;
+  isInsufficientCredits?: boolean;
+}> {
+  const client = getSupabase();
+  if (!client) {
+    return {
+      error: 'Service de documents non connecté. Merci de recharger ou de vous reconnecter.'
+    };
+  }
+
+  try {
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const { data, error } = await client.functions.invoke('generer-document', {
+      body: {
+        type,
+        donnees
+      },
+      headers
+    });
+
+    if (error) {
+      let errorMessage = 'La génération a échoué. Réessaie.';
+      let isInsufficientCredits = false;
+      let creditsRestants: number | undefined = undefined;
+
+      if ('context' in error && (error as any).context) {
+        try {
+          const ctx = (error as any).context;
+          const status = ctx.status;
+          if (status === 402) {
+            isInsufficientCredits = true;
+          }
+          let detail: any = null;
+          if (typeof ctx.json === 'function') {
+            detail = await ctx.json().catch(() => null);
+          } else if (typeof ctx.clone === 'function') {
+            detail = await ctx.clone().json().catch(() => null);
+          }
+          if (detail) {
+            if (
+              detail.code === 'CREDITS_INSUFFISANTS' ||
+              detail.error === 'CREDITS_INSUFFISANTS' ||
+              status === 402
+            ) {
+              isInsufficientCredits = true;
+              errorMessage = 'Crédits insuffisants. Recharger pour continuer.';
+            } else if (typeof detail.error === 'string' && detail.error) {
+              errorMessage = detail.error;
+            } else if (typeof detail.message === 'string' && detail.message) {
+              errorMessage = detail.message;
+            }
+            if (typeof detail.credits_restants === 'number') {
+              creditsRestants = detail.credits_restants;
+            }
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
+
+      if (isInsufficientCredits) {
+        errorMessage = 'Crédits insuffisants. Recharger pour continuer.';
+      }
+
+      return {
+        error: errorMessage,
+        isInsufficientCredits,
+        credits_restants: creditsRestants
+      };
+    }
+
+    return {
+      type: data?.type || type,
+      document: data?.document,
+      credits_restants: data?.credits_restants,
+      cout: data?.cout
+    };
+  } catch (err: any) {
+    console.error('genererDocumentAdministrative error:', err);
+    return {
+      error: 'La génération a échoué. Réessaie.'
+    };
+  }
+}
+
+// ============================================================================
+// MÉDIA GÉNÉRATEUR (VIDÉO & AUDIO)
+// ============================================================================
+
+const SESSION_MEDIA_OPTIONS_KEY = 'visora_media_options';
+let inMemoryMediaOptions: MediaOptionsResponse | null = null;
+
+/**
+ * Récupère les options et tarifs des modèles vidéo et audio depuis l'Edge Function "media-generer"
+ * Ne recopie aucun prix dans le code : tout est dynamique.
+ * Garde le résultat en mémoire de session (sessionStorage).
+ */
+export async function fetchMediaOptions(forceRefresh = false): Promise<{
+  data: MediaOptionsResponse | null;
+  error: string | null;
+}> {
+  if (!forceRefresh) {
+    if (inMemoryMediaOptions) {
+      return { data: inMemoryMediaOptions, error: null };
+    }
+    try {
+      const cached = sessionStorage.getItem(SESSION_MEDIA_OPTIONS_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as MediaOptionsResponse;
+        if (parsed && Array.isArray(parsed.video) && parsed.audio) {
+          inMemoryMediaOptions = parsed;
+          return { data: parsed, error: null };
+        }
+      }
+    } catch {
+      // ignore parsing error
+    }
+  }
+
+  const client = getSupabase();
+  if (!client) {
+    return { data: null, error: 'Tarifs indisponibles, réessaie' };
+  }
+
+  try {
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const { data, error } = await client.functions.invoke('media-generer', {
+      body: { action: 'options' },
+      headers
+    });
+
+    if (error || !data || !Array.isArray(data.video) || !data.audio) {
+      console.warn('fetchMediaOptions invoke error:', error, data);
+      return { data: null, error: 'Tarifs indisponibles, réessaie' };
+    }
+
+    inMemoryMediaOptions = data as MediaOptionsResponse;
+    try {
+      sessionStorage.setItem(SESSION_MEDIA_OPTIONS_KEY, JSON.stringify(data));
+    } catch {
+      // ignore quota error
+    }
+
+    return { data: inMemoryMediaOptions, error: null };
+  } catch (err: any) {
+    console.warn('fetchMediaOptions exception:', err);
+    return { data: null, error: 'Tarifs indisponibles, réessaie' };
+  }
+}
+
+/**
+ * Upload d'une image de départ pour la création de vidéo dans le bucket "uploads"
+ */
+export async function uploadMediaSourceToStorage(
+  userId: string,
+  file: File
+): Promise<string | null> {
+  if (!isSupabaseReady() || !supabaseClient) return null;
+  try {
+    const ext = file.name.split('.').pop() || 'png';
+    const uniqueId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 10);
+    const filePath = `${userId}/media-src/${uniqueId}.${ext}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('uploads')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.warn('Erreur upload source média:', uploadError.message);
+      return null;
+    }
+
+    return filePath;
+  } catch (err) {
+    console.warn('Exception upload source média:', err);
+    return null;
+  }
+}
+
+/**
+ * Appel de l'Edge Function "media-generer" pour la vidéo ou l'audio
+ */
+export async function invokeGenerateMedia(
+  payload: MediaGeneratePayload
+): Promise<{
+  data?: any;
+  media_id?: string;
+  media?: MediaRecord;
+  credits_restants?: number;
+  cout?: number;
+  error?: string;
+  isInsufficientCredits?: boolean;
+}> {
+  const client = getSupabase();
+  if (!client) {
+    return {
+      error: "Service de média non connecté. Merci de te connecter."
+    };
+  }
+
+  try {
+    console.log('media: démarrage');
+
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const { data, error } = await client.functions.invoke('media-generer', {
+      body: payload,
+      headers
+    });
+
+    if (error) {
+      let errorMessage = 'Une erreur est survenue, réessaie.';
+      let isInsufficientCredits = false;
+      let creditsRestants: number | undefined = undefined;
+
+      if ('context' in error && (error as any).context) {
+        try {
+          const resp = (error as any).context as Response;
+          let detail: any = null;
+          if (typeof resp.json === 'function') {
+            detail = await resp.json().catch(() => null);
+          } else if (typeof resp.clone === 'function') {
+            detail = await resp.clone().json().catch(() => null);
+          }
+
+          if (
+            resp.status === 402 ||
+            detail?.code === 'CREDITS_INSUFFISANTS' ||
+            detail?.error === 'CREDITS_INSUFFISANTS'
+          ) {
+            isInsufficientCredits = true;
+            const requis = detail?.credits_requis || detail?.cout || (payload as any).cout;
+            errorMessage = requis
+              ? `Il te faut ${requis} crédits`
+              : 'Crédits insuffisants. Recharger pour continuer.';
+          } else if (resp.status === 429) {
+            errorMessage =
+              (typeof detail?.error === 'string' && detail.error) ||
+              (typeof detail?.message === 'string' && detail.message) ||
+              'Trop de requêtes, patiente un instant.';
+          } else if (detail) {
+            if (typeof detail.error === 'string' && detail.error) {
+              errorMessage = detail.error;
+            } else if (typeof detail.message === 'string' && detail.message) {
+              errorMessage = detail.message;
+            }
+          }
+
+          if (typeof detail?.credits_restants === 'number') {
+            creditsRestants = detail.credits_restants;
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
+
+      return {
+        error: errorMessage,
+        isInsufficientCredits,
+        credits_restants: creditsRestants
+      };
+    }
+
+    const mediaId = data?.media_id || data?.id || data?.media?.id;
+
+    return {
+      data,
+      media_id: mediaId,
+      media: data?.media,
+      credits_restants: data?.credits_restants,
+      cout: data?.cout
+    };
+  } catch (err: any) {
+    console.error('invokeGenerateMedia error:', err);
+    return {
+      error: 'Une erreur est survenue, réessaie.'
+    };
+  }
+}
+
+/**
+ * Suivi du statut d'un média unique via supabase.functions.invoke("media-generer", { body: { action: "statut", media_id } })
+ */
+export async function fetchMediaStatus(mediaId: string): Promise<{
+  statut: 'en_cours' | 'termine' | 'echec' | string;
+  url?: string;
+  url_2?: string;
+  fichier?: string;
+  fichier_2?: string;
+  error?: string;
+  credits_restants?: number;
+  data?: any;
+}> {
+  const client = getSupabase();
+  if (!client || !mediaId) {
+    return { statut: 'echec', error: 'Service média non connecté.' };
+  }
+
+  try {
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const { data, error } = await client.functions.invoke('media-generer', {
+      body: { action: 'statut', media_id: mediaId },
+      headers
+    });
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Erreur réseau');
+    }
+
+    // Log visible dans la console du navigateur sans clé API ni jeton
+    const cleanLogData = { ...data };
+    delete cleanLogData.token;
+    delete cleanLogData.apiKey;
+    delete cleanLogData.access_token;
+    delete cleanLogData.key;
+    delete cleanLogData.authorization;
+    console.log('media: statut', cleanLogData);
+
+    let statut = data.statut;
+    if (!statut) {
+      if (data.status === 'completed' || data.status === 'termine') statut = 'termine';
+      else if (data.status === 'failed' || data.status === 'echec' || data.status === 'error') statut = 'echec';
+      else statut = 'en_cours';
+    } else if (statut === 'erreur' || statut === 'failed') {
+      statut = 'echec';
+    }
+
+    let finalUrl = data.url;
+    let finalUrl2 = data.url_2;
+    const fichier = data.fichier || data.chemin || data.options?.fichier;
+    const fichier2 = data.fichier_2 || data.chemin_2 || data.options?.fichier_2;
+
+    if (fichier && (!finalUrl || !finalUrl.startsWith('http'))) {
+      try {
+        const { data: signData } = await client.storage
+          .from('medias')
+          .createSignedUrl(fichier.replace(/^\/+/, ''), 3600);
+        if (signData?.signedUrl) {
+          finalUrl = signData.signedUrl;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (fichier2 && (!finalUrl2 || !finalUrl2.startsWith('http'))) {
+      try {
+        const { data: signData2 } = await client.storage
+          .from('medias')
+          .createSignedUrl(fichier2.replace(/^\/+/, ''), 3600);
+        if (signData2?.signedUrl) {
+          finalUrl2 = signData2.signedUrl;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (statut === 'termine') {
+      console.log('media: terminé');
+    }
+
+    return {
+      statut,
+      url: finalUrl,
+      url_2: finalUrl2,
+      fichier,
+      fichier_2: fichier2,
+      error:
+        data.error ||
+        (statut === 'echec'
+          ? data.message || 'La création a échoué. Tes crédits ont été rendus.'
+          : undefined),
+      credits_restants: data.credits_restants,
+      data
+    };
+  } catch (err: any) {
+    throw err;
+  }
+}
+
+/**
+ * Relit la table "medias" (id, type, statut, fichier, created_at ; order by created_at desc ; limit 30)
+ * Reprend le suivi pour les lignes "en_cours" de moins de 15 minutes,
+ * et génère une URL fraîche avec supabase.storage.from("medias").createSignedUrl(fichier, 3600) pour celles à "termine".
+ */
+export async function fetchRecentUserMedias(userId?: string): Promise<MediaRecord[]> {
+  const client = getSupabase();
+  if (!client) return [];
+
+  try {
+    let query = client
+      .from('medias')
+      .select('id,type,statut,prompt,fichier,projet_id,scene_num,scene_nom,created_at,cout,options')
+      .in('type', ['video', 'audio', 'musique'])
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || !Array.isArray(data)) {
+      return [];
+    }
+
+    const lignes = data as MediaRecord[];
+    console.log('media: liste', lignes);
+    return lignes;
+  } catch (err) {
+    console.warn('fetchRecentUserMedias error:', err);
+    return [];
+  }
+}
+
+/**
+ * Récupère les enregistrements de la table "medias" pour l'historique (limit 100)
+ */
+export async function fetchUserMedias(userId?: string): Promise<{
+  data: MediaRecord[];
+  error: string | null;
+}> {
+  const client = getSupabase();
+  if (!client) {
+    return { data: [], error: null };
+  }
+
+  try {
+    let query = client
+      .from('medias')
+      .select('id,type,statut,prompt,fichier,projet_id,scene_num,scene_nom,created_at,cout,options')
+      .in('type', ['video', 'audio', 'musique'])
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('fetchUserMedias error:', error.message);
+      return { data: [], error: error.message };
+    }
+
+    const lignes = (data || []) as MediaRecord[];
+    console.log('media: liste', lignes);
+    return { data: lignes, error: null };
+  } catch (err: any) {
+    console.warn('fetchUserMedias exception:', err);
+    return { data: [], error: err.message || 'Impossible de charger tes médias.' };
+  }
+}
+
+/**
+ * Supprime un média dans la table "medias" puis ses fichiers dans le bucket "medias"
+ */
+export async function deleteMediaRecord(
+  id: string,
+  fichier?: string,
+  fichier2?: string,
+  userId?: string
+): Promise<boolean> {
+  const client = getSupabase();
+  if (!client || !id) return false;
+  try {
+    let query = client
+      .from('medias')
+      .delete()
+      .eq('id', id);
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    } else {
+      const { data: sessionData } = await client.auth.getSession();
+      const currentUid = sessionData?.session?.user?.id;
+      if (currentUid) {
+        query = query.eq('user_id', currentUid);
+      }
+    }
+
+    const { error: delError } = await query;
+
+    if (delError) {
+      console.warn('deleteMediaRecord error:', delError.message);
+      return false;
+    }
+
+    const pathsToRemove: string[] = [];
+    if (fichier) {
+      pathsToRemove.push(fichier.replace(/^\/+/, ''));
+    }
+    if (fichier2) {
+      pathsToRemove.push(fichier2.replace(/^\/+/, ''));
+    }
+
+    if (pathsToRemove.length > 0) {
+      await client.storage.from('medias').remove(pathsToRemove);
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('deleteMediaRecord exception:', err);
+    return false;
+  }
+}
+
+/**
+ * Récupère le titre d'un projet vidéo depuis la table "projets_video"
+ */
+export async function fetchProjectTitle(projetId: string): Promise<string> {
+  const client = getSupabase();
+  if (!client || !projetId) return 'Projet vidéo';
+  try {
+    const { data, error } = await client
+      .from('projets_video')
+      .select('id,titre')
+      .eq('id', projetId);
+
+    if (error || !data || data.length === 0) {
+      return 'Projet vidéo';
+    }
+    return data[0]?.titre || 'Projet vidéo';
+  } catch {
+    return 'Projet vidéo';
+  }
+}
+
+/**
+ * Crée un lien signé frais pour un fichier du bucket privé "medias"
+ */
+export async function createMediaSignedUrl(fichier: string): Promise<{ signedUrl?: string; error?: any }> {
+  const client = getSupabase();
+  if (!client || !fichier) return { error: new Error('Fichier manquant ou client indisponible') };
+  try {
+    const cleanPath = fichier.replace(/^\/+/, '');
+    const { data, error } = await client.storage.from('medias').createSignedUrl(cleanPath, 3600);
+    if (error || !data?.signedUrl) {
+      console.log('media: lien', error || new Error('URL introuvable'));
+      return { error: error || new Error('URL introuvable') };
+    }
+    return { signedUrl: data.signedUrl };
+  } catch (err) {
+    console.log('media: lien', err);
+    return { error: err };
+  }
+}
+
+/**
+ * Crée un lien signé frais (durée 3600 secondes) pour un fichier du bucket privé "uploads"
+ * (image de départ, photo de personnage, etc.) au moment de l'affichage seulement, sans le stocker nulle part.
+ */
+export async function createUploadSignedUrl(
+  chemin: string,
+  expiresInSeconds = 3600
+): Promise<{ signedUrl?: string; error?: any }> {
+  const client = getSupabase();
+  if (!client || !chemin) return { error: new Error('Chemin manquant ou client indisponible') };
+  try {
+    const cleanPath = chemin.replace(/^\/+/, '');
+    const { data, error } = await client.storage
+      .from('uploads')
+      .createSignedUrl(cleanPath, expiresInSeconds);
+    if (error || !data?.signedUrl) {
+      return { error: error || new Error('URL signée introuvable') };
+    }
+    return { signedUrl: data.signedUrl };
+  } catch (err) {
+    return { error: err };
+  }
+}
+
+/**
+ * Récupère un média unique depuis la table "medias" (pour le suivi et rafraîchissement)
+ */
+export async function fetchSingleMediaRecord(mediaId: string, userId?: string): Promise<MediaRecord | null> {
+  if (!isSupabaseReady() || !supabaseClient || !mediaId) return null;
+  try {
+    let query = supabaseClient
+      .from('medias')
+      .select('*')
+      .eq('id', mediaId);
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    } else {
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const currentUid = sessionData?.session?.user?.id;
+      if (currentUid) {
+        query = query.eq('user_id', currentUid);
+      }
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (!error && data) {
+      let finalUrl = data.url;
+      if (data.chemin) {
+        try {
+          const { data: signData } = await supabaseClient.storage
+            .from('uploads')
+            .createSignedUrl(data.chemin.replace(/^\/+/, ''), 3600);
+          if (signData?.signedUrl) {
+            finalUrl = signData.signedUrl;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      return {
+        id: data.id,
+        user_id: data.user_id,
+        type: data.type || 'video',
+        modele: data.modele,
+        prompt: data.prompt,
+        texte: data.texte,
+        duree: data.duree,
+        resolution: data.resolution,
+        format: data.format,
+        son: data.son,
+        voix: data.voix,
+        langue: data.langue,
+        vitesse: data.vitesse,
+        statut: data.statut || 'termine',
+        url: finalUrl,
+        chemin: data.chemin,
+        cout: data.cout,
+        error: data.error,
+        created_at: data.created_at,
+        image_depart: data.image_depart,
+        signedUrl: finalUrl
+      };
+    }
+  } catch (e) {
+    console.warn('fetchSingleMediaRecord error:', e);
+  }
+  return null;
+}
+
+/**
+ * Télécharge un fichier média (vidéo MP4 ou audio MP3)
+ */
+export async function downloadMediaFile(url: string, filename: string): Promise<void> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Téléchargement direct impossible');
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    }, 400);
+  } catch {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 400);
+  }
+}
+
+/**
+ * Upload d'une image de personnage dans le bucket "uploads" à {user_id}/personnages/{uuid}.{ext}
+ */
+export async function uploadPersonnageImage(
+  userId: string,
+  file: File
+): Promise<string | null> {
+  if (!isSupabaseReady() || !supabaseClient) return null;
+  try {
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const uniqueId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 10);
+    const filePath = `${userId}/personnages/${uniqueId}.${ext}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('uploads')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.warn('Erreur upload personnage:', uploadError.message);
+      return null;
+    }
+
+    return filePath;
+  } catch (err) {
+    console.warn('Exception upload personnage:', err);
+    return null;
+  }
+}
+
+/**
+ * Création d'un projet vidéo multi-scènes via l'action "projet"
+ */
+export async function invokeCreateVideoProject(
+  payload: VideoProjectGeneratePayload
+): Promise<{
+  data?: any;
+  error?: string;
+  isInsufficientCredits?: boolean;
+  credits_restants?: number;
+  projet_id?: string;
+  cout?: number;
+}> {
+  const client = getSupabase();
+  if (!client) {
+    return { error: 'Service non connecté. Merci de te connecter.' };
+  }
+
+  try {
+    console.log('media: démarrage');
+
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const { data, error } = await client.functions.invoke('media-generer', {
+      body: payload,
+      headers
+    });
+
+    if (error) {
+      let errorMessage = 'La création du projet a échoué. Réessaie.';
+      let isInsufficientCredits = false;
+      let creditsRestants: number | undefined = undefined;
+
+      if ('context' in error && (error as any).context) {
+        try {
+          const resp = (error as any).context as Response;
+          if (resp.status === 402) {
+            isInsufficientCredits = true;
+          }
+          let detail: any = null;
+          if (typeof resp.json === 'function') {
+            detail = await resp.json().catch(() => null);
+          } else if (typeof resp.clone === 'function') {
+            detail = await resp.clone().json().catch(() => null);
+          }
+          if (detail) {
+            if (
+              detail.code === 'CREDITS_INSUFFISANTS' ||
+              detail.error === 'CREDITS_INSUFFISANTS' ||
+              resp.status === 402
+            ) {
+              isInsufficientCredits = true;
+              errorMessage = 'Crédits insuffisants. Recharger pour continuer.';
+            } else if (typeof detail.error === 'string' && detail.error) {
+              errorMessage = detail.error;
+            } else if (typeof detail.message === 'string' && detail.message) {
+              errorMessage = detail.message;
+            }
+            if (typeof detail.credits_restants === 'number') {
+              creditsRestants = detail.credits_restants;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (isInsufficientCredits) {
+        errorMessage = 'Crédits insuffisants. Recharger pour continuer.';
+      }
+
+      return {
+        error: errorMessage,
+        isInsufficientCredits,
+        credits_restants: creditsRestants
+      };
+    }
+
+    return {
+      data,
+      projet_id: data?.projet_id || data?.id,
+      credits_restants: data?.credits_restants,
+      cout: data?.cout
+    };
+  } catch (err: any) {
+    console.error('invokeCreateVideoProject exception:', err);
+    return { error: 'Une erreur imprévue est survenue lors de la création du projet.' };
+  }
+}
+
+/**
+ * Récupère le statut en direct d'un projet vidéo via l'action "statut_projet"
+ * Génère des URL fraîches avec supabase.storage.from("medias").createSignedUrl(fichier, 3600)
+ */
+export async function fetchProjectStatus(
+  projetId: string
+): Promise<{
+  data?: any;
+  error?: string;
+  termine?: boolean;
+  scenes?: VideoProjectScene[];
+}> {
+  const client = getSupabase();
+  if (!client || !projetId) return { error: 'Client indisponible' };
+
+  try {
+    const { data: sessionData } = await client.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const { data, error } = await client.functions.invoke('media-generer', {
+      body: { action: 'statut_projet', projet_id: projetId },
+      headers
+    });
+
+    if (error || !data) {
+      return { error: error?.message || 'Erreur réseau' };
+    }
+
+    const cleanLogData = { ...data };
+    delete cleanLogData.token;
+    delete cleanLogData.apiKey;
+    delete cleanLogData.access_token;
+    delete cleanLogData.key;
+    delete cleanLogData.authorization;
+    console.log('media: statut', cleanLogData);
+
+    if (data.termine) {
+      console.log('media: terminé');
+    }
+
+    const rawScenes: any[] = data.scenes || [];
+    const formattedScenes: VideoProjectScene[] = [];
+
+    for (const sc of rawScenes) {
+      let finalUrl = sc.url;
+      const fichier = sc.fichier || sc.chemin;
+      if (fichier && (!finalUrl || finalUrl.startsWith('http') === false)) {
+        try {
+          const { data: signData } = await client.storage
+            .from('medias')
+            .createSignedUrl(fichier.replace(/^\/+/, ''), 3600);
+          if (signData?.signedUrl) {
+            finalUrl = signData.signedUrl;
+          }
+        } catch {
+          // fallback
+        }
+      }
+
+      formattedScenes.push({
+        id: sc.id,
+        scene_num: sc.scene_num ?? sc.num ?? 1,
+        nom: sc.nom || sc.scene_nom,
+        scene_nom: sc.scene_nom || sc.nom,
+        prompt: sc.prompt,
+        duree: sc.duree,
+        statut: sc.statut || 'en_cours',
+        url: finalUrl,
+        fichier: fichier,
+        cout: sc.cout,
+        error: sc.error,
+        personnages: sc.personnages
+      });
+    }
+
+    return {
+      data,
+      termine: Boolean(data.termine),
+      scenes: formattedScenes
+    };
+  } catch (err: any) {
+    return { error: err?.message || 'Erreur réseau' };
+  }
+}
+
+/**
+ * Relit projets_video (id, titre, created_at, order by created_at desc, limit 20)
+ * et pour chaque projet ses scènes depuis medias.
+ * Génère des URL fraîches avec supabase.storage.from("medias").createSignedUrl(fichier, 3600).
+ * Ne stocke jamais d'URL signée en base.
+ */
+export async function fetchUserVideoProjects(
+  userId?: string
+): Promise<VideoProjectRecord[]> {
+  if (!isSupabaseReady() || !supabaseClient) return [];
+
+  try {
+    let query = supabaseClient
+      .from('projets_video')
+      .select('id, titre, style, modele, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: projectsData, error: pError } = await query;
+    if (pError || !projectsData || !Array.isArray(projectsData)) {
+      return [];
+    }
+
+    const projectRecords: VideoProjectRecord[] = [];
+
+    for (const proj of projectsData) {
+      const { data: mediasData } = await supabaseClient
+        .from('medias')
+        .select('id, scene_num, scene_nom, statut, fichier, cout, duree, prompt')
+        .eq('projet_id', proj.id)
+        .order('scene_num', { ascending: true });
+
+      const scenes: VideoProjectScene[] = [];
+      if (mediasData && Array.isArray(mediasData)) {
+        for (const m of mediasData) {
+          let signedUrl: string | undefined = undefined;
+          if (m.fichier) {
+            try {
+              const { data: signData } = await supabaseClient.storage
+                .from('medias')
+                .createSignedUrl(m.fichier.replace(/^\/+/, ''), 3600);
+              if (signData?.signedUrl) {
+                signedUrl = signData.signedUrl;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          scenes.push({
+            id: m.id,
+            scene_num: m.scene_num || 1,
+            scene_nom: m.scene_nom,
+            nom: m.scene_nom,
+            statut: m.statut || 'termine',
+            fichier: m.fichier,
+            cout: m.cout,
+            duree: m.duree,
+            prompt: m.prompt,
+            url: signedUrl
+          });
+        }
+      }
+
+      projectRecords.push({
+        id: proj.id,
+        titre: proj.titre,
+        style: proj.style,
+        modele: proj.modele,
+        created_at: proj.created_at,
+        scenes
+      });
+    }
+
+    return projectRecords;
+  } catch (err) {
+    console.warn('fetchUserVideoProjects exception:', err);
+    return [];
+  }
+}
+
+
+
 
