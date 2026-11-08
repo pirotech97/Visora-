@@ -189,7 +189,7 @@ const ImageHistoryCard: React.FC<ImageHistoryCardProps> = ({
         ) : imgSrc ? (
           <img
             src={imgSrc}
-            alt={image.prompt || 'Image Visora'}
+            alt={image.prompt || 'Image Visorax'}
             onError={handleImageError}
             className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
             loading="lazy"
@@ -1047,7 +1047,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               Tu n'as pas encore créé d'image.
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 max-w-xs mx-auto leading-relaxed">
-              Crée ta première image, affiche ou fiche produit avec Visora.
+              Crée ta première image, affiche ou fiche produit avec Visorax Studio.
             </p>
             {onOpenCreateImage ? (
               <button

@@ -12,6 +12,7 @@ import { SidebarDrawer } from './components/SidebarDrawer';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { OfflineBanner } from './components/OfflineBanner';
 import { PWAUpdateBanner } from './components/PWAUpdateBanner';
+import { AnnoncePopupHost } from './components/AnnoncePopupHost';
 import { AlertTriangle, X } from 'lucide-react';
 import { fetchServerConfig } from './services/api';
 import { openWhatsAppRecharge } from './services/constants';
@@ -268,11 +269,31 @@ export default function App() {
     setHistoryRefreshKey((prev) => prev + 1);
   };
 
+  const handleNavigate = (path: string) => {
+    const clean = path.toLowerCase().split('?')[0].split('#')[0];
+    if (clean === '/admin') {
+      setActiveTab('admin');
+    } else if (clean === '/tools' || clean === '/outils') {
+      setActiveTab('tools');
+    } else if (clean === '/history' || clean === '/historique') {
+      setActiveTab('history');
+    } else if (clean === '/profile' || clean === '/profil') {
+      setActiveTab('profile');
+    } else if (clean === '/settings' || clean === '/parametres') {
+      setActiveTab('settings');
+    } else if (clean === '/' || clean === '/chat') {
+      setActiveTab('chat');
+    } else {
+      window.history.pushState(null, '', path);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-[100dvh] max-h-[100dvh] w-full bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
         <div className="w-12 h-12 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Chargement de Visora…</p>
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Chargement de Visorax Studio…</p>
       </div>
     );
   }
@@ -290,6 +311,15 @@ export default function App() {
     >
       <OfflineBanner />
       <PWAUpdateBanner />
+
+      {/* Annonces administratives en popup (une seule à la fois, une fois par utilisateur) */}
+      {user && !isResetPassword && !loading && (
+        <AnnoncePopupHost
+          user={user}
+          isAppReady={!loading && !isResetPassword}
+          onNavigate={handleNavigate}
+        />
+      )}
 
       {isResetPassword ? (
         <div className="flex-1 min-h-0 w-full h-full overflow-y-auto overscroll-contain">

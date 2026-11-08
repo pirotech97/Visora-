@@ -5,7 +5,8 @@ import type {
   AdminUserDetail,
   AdminJournalEntry,
   AdminCreditTransaction,
-  AdminUserCreation
+  AdminUserCreation,
+  AdminAnnonceItem
 } from '../types';
 
 export interface AdminApiResponse<T = any> {
@@ -239,23 +240,153 @@ export async function unblockUser(
 }
 
 /**
- * Récupère le journal des actions administratives
+ * Récupère le journal des actions administratives avec filtres et pagination
+ * Appel : action "journal", body { action: "journal", action_filtre, user_id, limite, decalage }
  */
-export async function fetchAdminJournal(): Promise<{ journal: AdminJournalEntry[]; error?: string; status?: number }> {
-  const res = await invokeAdminApi<{ journal?: AdminJournalEntry[] } | AdminJournalEntry[]>({
-    action: 'journal'
+export async function fetchAdminJournal(
+  actionFiltre = '',
+  userId = '',
+  limite = 50,
+  decalage = 0
+): Promise<{
+  total: number;
+  journal: AdminJournalEntry[];
+  actions: string[];
+  error?: string;
+  status?: number;
+}> {
+  const res = await invokeAdminApi<any>({
+    action: 'journal',
+    action_filtre: actionFiltre,
+    user_id: userId,
+    limite,
+    decalage
   });
 
   if (res.error) {
-    return { journal: [], error: res.error, status: res.status };
+    return { total: 0, journal: [], actions: [], error: res.error, status: res.status };
   }
 
+  const raw = res.data;
   let list: AdminJournalEntry[] = [];
-  if (Array.isArray(res.data)) {
-    list = res.data;
-  } else if (res.data && Array.isArray((res.data as any).journal)) {
-    list = (res.data as any).journal;
+  let total = 0;
+  let actions: string[] = [];
+
+  if (Array.isArray(raw)) {
+    list = raw;
+    total = raw.length;
+  } else if (raw && typeof raw === 'object') {
+    if (Array.isArray(raw.journal)) {
+      list = raw.journal;
+    }
+    total = typeof raw.total === 'number' ? raw.total : list.length;
+    if (Array.isArray(raw.actions)) {
+      actions = raw.actions;
+    }
   }
 
-  return { journal: list, status: res.status };
+  return { total, journal: list, actions, status: res.status };
 }
+
+/**
+ * Récupère la liste des annonces publiées/programmées par l'administrateur
+ * Action : "annonces_liste"
+ */
+export async function fetchAdminAnnonces(): Promise<{
+  annonces: AdminAnnonceItem[];
+  error?: string;
+  status?: number;
+}> {
+  const res = await invokeAdminApi<{ annonces?: AdminAnnonceItem[] }>({
+    action: 'annonces_liste'
+  });
+
+  if (res.error) {
+    return { annonces: [], error: res.error, status: res.status };
+  }
+
+  const list = Array.isArray(res.data?.annonces)
+    ? res.data!.annonces
+    : (Array.isArray(res.data) ? (res.data as any) : []);
+
+  return { annonces: list, status: res.status };
+}
+
+/**
+ * Enregistre ou modifie une annonce administrative
+ * Action : "annonce_enregistrer"
+ */
+export async function saveAdminAnnonce(payload: {
+  id?: string | number;
+  titre: string;
+  message: string;
+  type: string;
+  bouton_libelle?: string | null;
+  bouton_lien?: string | null;
+  actif: boolean;
+  debut_at?: string | null;
+  fin_at?: string | null;
+  debut_le?: string | null;
+  fin_le?: string | null;
+}): Promise<{ ok?: boolean; id?: string | number; error?: string; status?: number }> {
+  const debutVal = payload.debut_at || payload.debut_le || null;
+  const finVal = payload.fin_at || payload.fin_le || null;
+
+  const res = await invokeAdminApi<{ ok?: boolean; id?: string | number }>({
+    action: 'annonce_enregistrer',
+    ...payload,
+    debut_at: debutVal,
+    debut_le: debutVal,
+    fin_at: finVal,
+    fin_le: finVal
+  });
+
+  return {
+    ok: res.data?.ok,
+    id: res.data?.id,
+    error: res.error,
+    status: res.status
+  };
+}
+
+/**
+ * Bascule l'état actif/inactif d'une annonce
+ * Action : "annonce_basculer"
+ */
+export async function toggleAdminAnnonce(
+  id: string | number,
+  actif: boolean
+): Promise<{ ok?: boolean; actif?: boolean; error?: string; status?: number }> {
+  const res = await invokeAdminApi<{ ok?: boolean; actif?: boolean }>({
+    action: 'annonce_basculer',
+    id,
+    actif
+  });
+
+  return {
+    ok: res.data?.ok,
+    actif: res.data?.actif,
+    error: res.error,
+    status: res.status
+  };
+}
+
+/**
+ * Supprime définitivement une annonce
+ * Action : "annonce_supprimer"
+ */
+export async function deleteAdminAnnonce(
+  id: string | number
+): Promise<{ ok?: boolean; error?: string; status?: number }> {
+  const res = await invokeAdminApi<{ ok?: boolean }>({
+    action: 'annonce_supprimer',
+    id
+  });
+
+  return {
+    ok: res.data?.ok,
+    error: res.error,
+    status: res.status
+  };
+}
+

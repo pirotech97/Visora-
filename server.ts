@@ -91,7 +91,7 @@ async function startServer() {
   }
 
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Visora server running on http://0.0.0.0:${port}`);
+    console.log(`Visorax Studio server running on http://0.0.0.0:${port}`);
   });
 }
 

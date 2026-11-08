@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { KeyRound, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { getSupabase, updateUserPassword, isPasswordValid, signOutUser } from '../services/supabase';
+import { VisoraxLogo } from './VisoraxLogo';
 
 interface ResetPasswordScreenProps {
   onGoToSignIn: (successMessage?: string, initialMode?: 'signin' | 'forgot-password') => void;
@@ -163,12 +164,9 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ onGoTo
     >
       {/* Top Header */}
       <div className="pt-6 sm:pt-10 text-center select-none">
-        <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/20 mb-3">
-          <KeyRound className="w-8 h-8 sm:w-9 sm:h-9" />
+        <div className="flex justify-center mb-3">
+          <VisoraxLogo variant="empile" size={54} />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          Visora
-        </h1>
         <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
           Réinitialisation sécurisée de ton mot de passe
         </p>

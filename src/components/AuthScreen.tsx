@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { VisoraMascot } from './VisoraMascot';
+import { VisoraxMascot } from './VisoraxMascot';
+import { VisoraxLogo } from './VisoraxLogo';
 import {
   FileText,
   Lock,
@@ -300,21 +301,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       <div className="w-full max-w-lg lg:max-w-screen-xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-center lg:gap-16 xl:gap-24 my-auto">
         {/* Panneau de marque gauche (affiché uniquement sur lg et plus) */}
         <div className="hidden lg:flex flex-col items-start justify-center max-w-md xl:max-w-lg space-y-6 text-left select-none">
-          <div className="flex items-center gap-4">
-            <VisoraMascot size={110} mood="content" decorative />
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-200/60 dark:border-blue-800/60">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Studio de création IA</span>
-              </div>
-              <h1 className="text-4xl xl:text-5xl font-black text-slate-900 dark:text-white tracking-tight mt-2">
-                Visora
-              </h1>
-            </div>
+          <div>
+            <VisoraxLogo variant="empile" size={76} />
+            <p className="text-xl font-bold font-title text-slate-900 dark:text-white mt-3 tracking-tight">
+              Crée, convertis, partage.
+            </p>
           </div>
 
           <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-            Ton atelier intelligent pour convertir, créer et produire en quelques secondes.
+            Ton atelier intelligent pour documents, affiches, voix et musique depuis ton téléphone.
           </p>
 
           <div className="space-y-3.5 pt-2">
@@ -332,7 +327,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <CheckCircle2 className="w-4 h-4" />
               </div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 leading-snug">
-                Génère des vidéos, voix réalistes, musiques et visuels en un clic.
+                Génère des affiches A4, voix réalistes, musiques et visuels en un clic.
               </p>
             </div>
 
@@ -357,15 +352,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {/* Colonne droite : Carte Auth (420 à 460 px sur lg) */}
         <div className="w-full lg:w-[450px] lg:max-w-[460px] flex flex-col justify-center">
           {/* Top Header visible uniquement sur mobile et tablette */}
-          <div className="lg:hidden text-center select-none pt-4 pb-2">
-            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/20 mb-3">
-              <FileText className="w-8 h-8 sm:w-9 sm:h-9" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Visora
-            </h1>
-            <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
-              Convertis tes PDF et photos en Word (.docx) fidèles mot pour mot, sans retouche ni modification.
+          <div className="lg:hidden text-center select-none pt-4 pb-2 flex flex-col items-center">
+            <VisoraxLogo variant="empile" size={54} />
+            <p className="mt-2 text-sm font-bold font-title text-slate-900 dark:text-white">
+              Crée, convertis, partage.
+            </p>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
+              Documents, affiches, voix et musique depuis ton téléphone.
             </p>
           </div>
 

@@ -93,8 +93,12 @@ export function getSupabaseAnonKey(): string {
 }
 
 export function initSupabase(overrideUrl?: string, overrideKey?: string): boolean {
-  const rawUrl = overrideUrl !== undefined ? overrideUrl : import.meta.env.VITE_SUPABASE_URL;
-  const rawKey = overrideKey !== undefined ? overrideKey : import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const env: Record<string, any> =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env) ||
+    (typeof process !== 'undefined' && process.env) ||
+    {};
+  const rawUrl = overrideUrl !== undefined ? overrideUrl : env.VITE_SUPABASE_URL;
+  const rawKey = overrideKey !== undefined ? overrideKey : env.VITE_SUPABASE_ANON_KEY;
 
   const candidateUrl = cleanSupabaseUrl(rawUrl);
   const candidateKey = cleanSupabaseKey(rawKey);

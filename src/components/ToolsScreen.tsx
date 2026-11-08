@@ -24,6 +24,7 @@ import { InvoiceGeneratorTool } from './InvoiceGeneratorTool';
 import { FormGeneratorTool } from './FormGeneratorTool';
 import { MesModelesTool } from './MesModelesTool';
 import { BottomNav } from './BottomNav';
+import { VisoraxLogo } from './VisoraxLogo';
 
 interface ToolsScreenProps {
   user: UserProfile;
@@ -246,19 +247,11 @@ export const ToolsScreen: React.FC<ToolsScreenProps> = ({
               <Menu className="w-5 h-5" />
             </button>
           )}
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
-            <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Visora</h1>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/50 shrink-0">
-                Outils
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate hidden min-[480px]:block">
-              Documents administratifs & PDF
-            </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <VisoraxLogo variant="ligne" size={32} />
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/50 shrink-0">
+              Outils
+            </span>
           </div>
         </div>
 

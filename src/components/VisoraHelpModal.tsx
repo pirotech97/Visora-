@@ -9,10 +9,10 @@ import {
   MessageCircle,
   HelpCircle
 } from 'lucide-react';
-import { VisoraMascot, type VisoraMood } from './VisoraMascot';
+import { VisoraxMascot, type VisoraxMood } from './VisoraxMascot';
 
 // ============================================================================
-// QUESTIONS ET RÉPONSES FIXES DE VISORA (Faciles à modifier)
+// QUESTIONS ET RÉPONSES FIXES DE VISORAX (Faciles à modifier)
 // ============================================================================
 export interface FaqItem {
   id: number;
@@ -20,7 +20,7 @@ export interface FaqItem {
   answer: string;
   actionLabel?: string;
   actionType?: 'add_file' | 'recharge' | 'history' | 'support';
-  mood?: VisoraMood;
+  mood?: VisoraxMood;
 }
 
 export const FAQ_ITEMS: FaqItem[] = [
@@ -158,7 +158,7 @@ export const VisoraHelpModal: React.FC<VisoraHelpModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentMood: VisoraMood = selectedFaq ? selectedFaq.mood || 'content' : 'normal';
+  const currentMood: VisoraxMood = selectedFaq ? selectedFaq.mood || 'content' : 'normal';
 
   return (
     <>
@@ -189,16 +189,16 @@ export const VisoraHelpModal: React.FC<VisoraHelpModalProps> = ({
         aria-modal="true"
         className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden inset-x-0 bottom-0 h-[70dvh] max-h-[70dvh] rounded-t-3xl sm:inset-x-auto sm:bottom-20 sm:right-6 sm:w-[360px] sm:h-[540px] sm:max-h-[580px] sm:rounded-3xl animate-in slide-in-from-bottom sm:zoom-in-95 sm:fade-in duration-200 select-none"
       >
-        {/* En-tête : mascotte (size 32) + "Visora" + "Je t'explique comment ça marche" */}
+        {/* En-tête : mascotte (size 32) + "Visorax" + "Je t'explique comment ça marche" */}
         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/60 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <VisoraMascot size={32} mood={currentMood} decorative />
+            <VisoraxMascot size={32} mood={currentMood} decorative />
             <div className="min-w-0">
               <h2
                 id="visora-help-title"
                 className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-tight"
               >
-                Visora
+                Visorax
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                 Je t'explique comment ça marche
@@ -221,11 +221,11 @@ export const VisoraHelpModal: React.FC<VisoraHelpModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {!selectedFaq ? (
             <>
-              {/* Message d'accueil de Visora */}
+              {/* Message d'accueil de Visorax */}
               <div className="flex items-start gap-2.5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 rounded-2xl p-3.5">
-                <VisoraMascot size={28} mood="normal" decorative className="shrink-0 mt-0.5" />
+                <VisoraxMascot size={28} mood="normal" decorative className="shrink-0 mt-0.5" />
                 <p className="text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
-                  Salut, je suis Visora. Je transforme tes PDF et tes photos en Word, sans toucher au texte. Que veux-tu savoir ?
+                  Salut, je suis Visorax. Je transforme tes PDF et tes photos en Word, sans toucher au texte. Que veux-tu savoir ?
                 </p>
               </div>
 
@@ -247,7 +247,7 @@ export const VisoraHelpModal: React.FC<VisoraHelpModalProps> = ({
               </div>
             </>
           ) : (
-            /* Affichage Question sélectionnée + Réponse Visora */
+            /* Affichage Question sélectionnée + Réponse Visorax */
             <div className="space-y-4 animate-in fade-in duration-150">
               {/* Bouton "Retour aux questions" */}
               <button
@@ -266,9 +266,9 @@ export const VisoraHelpModal: React.FC<VisoraHelpModalProps> = ({
                 </div>
               </div>
 
-              {/* Bulle Réponse (Visora) */}
+              {/* Bulle Réponse (Visorax) */}
               <div className="flex items-start gap-2.5">
-                <VisoraMascot
+                <VisoraxMascot
                   size={32}
                   mood={selectedFaq.mood || 'content'}
                   decorative

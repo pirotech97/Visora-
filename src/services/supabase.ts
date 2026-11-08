@@ -1335,7 +1335,7 @@ export async function invokeGenerateImageFunction(
     fiche_produit: 'Fiche produit studio',
     modifier: 'Photo modifiée'
   };
-  const modeLabel = modeLabels[mode] || 'Création Visora';
+  const modeLabel = modeLabels[mode] || 'Création Visorax';
 
   const demoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.w}" height="${size.h}" viewBox="0 0 ${size.w} ${size.h}">
     <defs>
@@ -1349,7 +1349,7 @@ export async function invokeGenerateImageFunction(
     <circle cx="${size.w / 2}" cy="${size.h / 2 - 40}" r="${Math.min(size.w, size.h) * 0.25}" fill="rgba(255,255,255,0.12)" />
     <text x="50%" y="${size.h / 2 - 10}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.045)}px" font-weight="bold" fill="#ffffff" text-anchor="middle">${modeLabel}</text>
     <text x="50%" y="${size.h / 2 + 35}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.026)}px" fill="rgba(255,255,255,0.85)" text-anchor="middle">Format ${format} · ${resolution} · ${qualite}</text>
-    <text x="50%" y="${size.h - 50}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.022)}px" fill="rgba(255,255,255,0.7)" text-anchor="middle">Visora AI · Rendu fidèle</text>
+    <text x="50%" y="${size.h - 50}" font-family="system-ui, sans-serif" font-size="${Math.round(size.w * 0.022)}px" fill="rgba(255,255,255,0.7)" text-anchor="middle">Visorax Studio · Rendu fidèle</text>
   </svg>`;
 
   const demoDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(demoSvg);

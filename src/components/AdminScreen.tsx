@@ -24,14 +24,14 @@ import {
   Mic,
   FileText,
   X,
-  Loader2
+  Loader2,
+  Megaphone
 } from 'lucide-react';
 import type {
   UserProfile,
   AdminDashboardStats,
   AdminUserSummary,
   AdminUserDetail,
-  AdminJournalEntry,
   AdminCreditTransaction,
   AdminUserCreation
 } from '../types';
@@ -42,9 +42,10 @@ import {
   fetchAdminUserDetail,
   adjustUserCredits,
   blockUser,
-  unblockUser,
-  fetchAdminJournal
+  unblockUser
 } from '../services/adminApi';
+import { AdminJournalTab } from './admin/AdminJournalTab';
+import { AdminAnnoncesTab } from './admin/AdminAnnoncesTab';
 
 interface AdminScreenProps {
   currentUser: UserProfile;
@@ -52,7 +53,7 @@ interface AdminScreenProps {
   onOpenMenu: () => void;
 }
 
-type AdminTab = 'stats' | 'users' | 'journal';
+type AdminTab = 'stats' | 'users' | 'journal' | 'annonces';
 
 export const AdminScreen: React.FC<AdminScreenProps> = ({
   currentUser,
@@ -63,6 +64,10 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [activeTab, setActiveTab] = useState<AdminTab>('stats');
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  // Filtre pré-sélectionné pour le journal depuis la fiche utilisateur
+  const [journalPreselectedUserId, setJournalPreselectedUserId] = useState<string | null>(null);
+  const [journalPreselectedUserLabel, setJournalPreselectedUserLabel] = useState<string | null>(null);
 
   // État Onglet 1 : Tableau de bord (stats)
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
@@ -93,10 +98,6 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
   const [blockModalType, setBlockModalType] = useState<'block' | 'unblock' | null>(null);
   const [blockReason, setBlockReason] = useState<string>('');
   const [submittingBlock, setSubmittingBlock] = useState(false);
-
-  // État Onglet 3 : Journal
-  const [journal, setJournal] = useState<AdminJournalEntry[]>([]);
-  const [loadingJournal, setLoadingJournal] = useState(false);
 
   const PAGE_SIZE = 25;
 
@@ -384,27 +385,6 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
     }
   };
 
-  // ----------------------------------------------------
-  // ONGLET 3 : JOURNAL
-  // ----------------------------------------------------
-  const loadJournal = async () => {
-    setLoadingJournal(true);
-    setGlobalError(null);
-    try {
-      const res = await fetchAdminJournal();
-      if (handlePotential403(res.status, res.error)) return;
-      if (res.error) {
-        setGlobalError(res.error);
-      } else {
-        setJournal(res.journal || []);
-      }
-    } catch (err: any) {
-      setGlobalError(err?.message || 'Erreur lors du chargement du journal.');
-    } finally {
-      setLoadingJournal(false);
-    }
-  };
-
   // Navigation entre onglets
   const handleTabChange = (tab: AdminTab) => {
     setActiveTab(tab);
@@ -413,8 +393,6 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
       loadStats();
     } else if (tab === 'users' && users.length === 0) {
       loadUsers(searchQuery, currentPage);
-    } else if (tab === 'journal' && journal.length === 0) {
-      loadJournal();
     }
   };
 
@@ -464,42 +442,6 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
         return 'Recharge';
       default:
         return motif || 'Transaction';
-    }
-  };
-
-  const getJournalActionBadge = (action: string) => {
-    switch (action) {
-      case 'ajout_credits':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-            <PlusCircle className="w-3 h-3" /> Ajout crédits
-          </span>
-        );
-      case 'retrait_credits':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-            <MinusCircle className="w-3 h-3" /> Retrait crédits
-          </span>
-        );
-      case 'blocage':
-      case 'bloquage':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
-            <Lock className="w-3 h-3" /> Blocage
-          </span>
-        );
-      case 'deblocage':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-            <Unlock className="w-3 h-3" /> Déblocage
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-            {action}
-          </span>
-        );
     }
   };
 
@@ -561,7 +503,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-              Tableau de bord & gestion Visora
+              Tableau de bord & gestion Visorax Studio
             </p>
           </div>
         </div>
@@ -580,44 +522,57 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
 
       {/* Barre d'onglets Admin */}
       <div className="px-3 py-2 bg-white/70 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800 shrink-0 backdrop-blur-xs">
-        <nav className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
+        <nav className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl overflow-x-auto">
           <button
             type="button"
             onClick={() => handleTabChange('stats')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`flex-1 min-w-[90px] flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
               activeTab === 'stats'
                 ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-2xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <LayoutDashboard className="w-4 h-4" />
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
             <span className="truncate">Tableau de bord</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('users')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`flex-1 min-w-[90px] flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
               activeTab === 'users'
                 ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-2xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-4 h-4 shrink-0" />
             <span className="truncate">Utilisateurs</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('journal')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`flex-1 min-w-[90px] flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
               activeTab === 'journal'
                 ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-2xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <ScrollText className="w-4 h-4" />
+            <ScrollText className="w-4 h-4 shrink-0" />
             <span className="truncate">Journal</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('annonces')}
+            className={`flex-1 min-w-[90px] flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'annonces'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Megaphone className="w-4 h-4 shrink-0" />
+            <span className="truncate">Annonces</span>
           </button>
         </nav>
       </div>
@@ -946,104 +901,22 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
         {/* ONGLET 3 : JOURNAL */}
         {/* ================================================================= */}
         {activeTab === 'journal' && (
-          <div className="space-y-3 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Journal d'audit administratif
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Les 100 dernières actions effectuées (lecture seule)
-                </p>
-              </div>
+          <AdminJournalTab
+            onOpenUser={(uid) => openUserDetail(uid)}
+            initialUserId={journalPreselectedUserId}
+            initialUserLabel={journalPreselectedUserLabel}
+            onClearInitialUser={() => {
+              setJournalPreselectedUserId(null);
+              setJournalPreselectedUserLabel(null);
+            }}
+          />
+        )}
 
-              <button
-                type="button"
-                onClick={loadJournal}
-                disabled={loadingJournal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loadingJournal ? 'animate-spin' : ''}`} />
-                <span>Actualiser</span>
-              </button>
-            </div>
-
-            <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[580px] lg:min-w-full">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-semibold">
-                      <th className="py-2.5 px-3">Date</th>
-                      <th className="py-2.5 px-3">Action</th>
-                      <th className="py-2.5 px-3">Utilisateur</th>
-                      <th className="py-2.5 px-3">Détails (montant / raison / solde après)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {loadingJournal && journal.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center text-slate-400">
-                          <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1 text-blue-600" />
-                          Chargement du journal…
-                        </td>
-                      </tr>
-                    ) : journal.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center text-slate-400">
-                          Aucune action enregistrée pour le moment.
-                        </td>
-                      </tr>
-                    ) : (
-                      journal.map((item, idx) => {
-                        const shortUid = item.user_id ? `${item.user_id.substring(0, 8)}…` : '-';
-                        return (
-                          <tr key={item.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                            <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                              {formatDate(item.created_at)}
-                            </td>
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              {getJournalActionBadge(item.action)}
-                            </td>
-                            <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                              {shortUid}
-                            </td>
-                            <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {item.delta !== undefined && item.delta !== null && (
-                                  <span
-                                    className={`font-bold ${
-                                      item.delta > 0
-                                        ? 'text-emerald-600 dark:text-emerald-400'
-                                        : 'text-amber-600 dark:text-amber-400'
-                                    }`}
-                                  >
-                                    {item.delta > 0 ? `+${item.delta}` : item.delta} cr
-                                  </span>
-                                )}
-                                {item.note && (
-                                  <span className="text-slate-600 dark:text-slate-400 italic">
-                                    « {item.note} »
-                                  </span>
-                                )}
-                                {item.solde_apres !== undefined && item.solde_apres !== null && (
-                                  <span className="text-[11px] text-slate-400">
-                                    (solde après : {item.solde_apres} cr)
-                                  </span>
-                                )}
-                                {item.details && typeof item.details === 'string' && !item.note && (
-                                  <span>{item.details}</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        {/* ================================================================= */}
+        {/* ONGLET 4 : ANNONCES */}
+        {/* ================================================================= */}
+        {activeTab === 'annonces' && (
+          <AdminAnnoncesTab />
         )}
       </main>
 
@@ -1123,6 +996,34 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
                 </div>
               ) : userDetail?.utilisateur ? (
                 <>
+                  {/* Action rapide : Voir le journal de ce compte */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-blue-950 dark:text-blue-200 truncate">
+                        Audit & historique
+                      </p>
+                      <p className="text-[11px] text-blue-700 dark:text-blue-400 truncate">
+                        Consulter toutes les actions liées à ce compte
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const u = userDetail.utilisateur;
+                        const fullName = [u.prenoms, u.nom].filter(Boolean).join(' ').trim();
+                        const label = fullName ? `${fullName} (${u.email})` : u.email;
+                        setJournalPreselectedUserId(u.id);
+                        setJournalPreselectedUserLabel(label);
+                        closeUserDetail();
+                        setActiveTab('journal');
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs transition active:scale-95 shrink-0 cursor-pointer"
+                    >
+                      <ScrollText className="w-3.5 h-3.5" />
+                      <span>Voir le journal de ce compte</span>
+                    </button>
+                  </div>
+
                   {/* Coordonnées et solde */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 space-y-1.5 text-xs">

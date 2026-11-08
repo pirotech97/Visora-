@@ -653,13 +653,52 @@ export interface AdminUserDetail {
 }
 
 export interface AdminJournalEntry {
-  id?: string;
+  id: string;
   created_at: string;
-  action: 'ajout_credits' | 'retrait_credits' | 'blocage' | 'bloquage' | 'deblocage' | string;
-  user_id?: string;
+  action: string;
+  details?: any;
   admin_id?: string;
+  admin_email?: string;
+  cible_user_id?: string;
+  cible_email?: string;
+  cible_nom?: string;
+  cible_supprimee?: boolean;
+  // Champs de compatibilité
+  user_id?: string;
   delta?: number;
   note?: string;
   solde_apres?: number;
-  details?: string | any;
 }
+
+// ============================================================================
+// ANNONCES EN POPUP (Système d'annonces administratives)
+// ============================================================================
+export type AnnonceType = 'info' | 'nouveaute' | 'promo' | 'important';
+
+export interface Annonce {
+  id: string | number;
+  titre: string;
+  message: string;
+  type: AnnonceType;
+  bouton_libelle: string | null;
+  bouton_lien: string | null;
+}
+
+export interface AdminAnnonceItem {
+  id: string | number;
+  titre: string;
+  message: string;
+  type: AnnonceType;
+  bouton_libelle?: string | null;
+  bouton_lien?: string | null;
+  actif: boolean;
+  debut_at?: string | null;
+  fin_at?: string | null;
+  debut_le?: string | null;
+  fin_le?: string | null;
+  created_at: string;
+  vues?: number;
+  vues_count?: number;
+  en_ligne?: boolean;
+}
+

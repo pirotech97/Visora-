@@ -1,6 +1,6 @@
 {
   "name": "Visora",
-  "description": "Crée des documents, images, vidéos, voix et musiques avec l'IA en quelques secondes. Paye seulement ce que tu utilises avec des crédits à partir de 1 000 FCFA.",
+  "description": "Visorax Studio : documents, affiches, voix et musique depuis ton téléphone. Crée, convertis, partage.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

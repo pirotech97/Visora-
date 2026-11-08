@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { VisoraMascot, VisoraMood } from './VisoraMascot';
+import { VisoraxMascot, type VisoraxMood as VisoraMood } from './VisoraxMascot';
+import { VisoraxLogo } from './VisoraxLogo';
 import {
   FileText,
   Image as ImageIcon,
@@ -21,7 +22,8 @@ import {
 // RÉGLAGES EN UN SEUL ENDROIT
 // ============================================================================
 const CONFIG = {
-  NOM: "Visora",
+  NOM: "Visorax Studio",
+  NOM_COURT: "Visorax",
   WHATSAPP_NUMERO: "22892556462",   // format international sans le +
   EMAIL_CONTACT: "",
   VALEUR_CREDIT_FCFA: 20,
@@ -189,7 +191,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     if (isCustomEmpty || currentCredits < 5) return;
     if (CONFIG.WHATSAPP_NUMERO && CONFIG.WHATSAPP_NUMERO.trim().length > 0) {
       const cleanPhone = CONFIG.WHATSAPP_NUMERO.replace(/[^0-9]/g, '');
-      const message = `Bonjour, je veux ${currentCredits} crédits (${customPrix.toLocaleString('fr-FR')} FCFA) pour mon compte Visora. Mon email : `;
+      const message = `Bonjour, je veux ${currentCredits} crédits (${customPrix.toLocaleString('fr-FR')} FCFA) pour mon compte Visorax. Mon email : `;
       const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
       window.open(url, '_blank', 'noopener,noreferrer');
     } else {
@@ -200,7 +202,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const handleContactWhatsAppOver500 = () => {
     if (CONFIG.WHATSAPP_NUMERO && CONFIG.WHATSAPP_NUMERO.trim().length > 0) {
       const cleanPhone = CONFIG.WHATSAPP_NUMERO.replace(/[^0-9]/g, '');
-      const message = 'Bonjour, je souhaite commander plus de 500 crédits pour mon compte Visora.';
+      const message = 'Bonjour, je souhaite commander plus de 500 crédits pour mon compte Visorax.';
       const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
       window.open(url, '_blank', 'noopener,noreferrer');
     } else {
@@ -231,7 +233,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     const prix = credits * CONFIG.VALEUR_CREDIT_FCFA;
     if (CONFIG.WHATSAPP_NUMERO && CONFIG.WHATSAPP_NUMERO.trim().length > 0) {
       const cleanPhone = CONFIG.WHATSAPP_NUMERO.replace(/[^0-9]/g, '');
-      const message = `Bonjour, je veux le pack ${nom} (${credits} crédits, ${prix.toLocaleString('fr-FR')} FCFA) pour mon compte Visora. Mon email : `;
+      const message = `Bonjour, je veux le pack ${nom} (${credits} crédits, ${prix.toLocaleString('fr-FR')} FCFA) pour mon compte Visorax. Mon email : `;
       const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
       window.open(url, '_blank', 'noopener,noreferrer');
     } else {
@@ -272,17 +274,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <header className="sticky top-0 z-40 w-full bg-[var(--lp-dominante)]/95 backdrop-blur-md border-b border-[var(--lp-bordure)] transition-colors">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           
-          {/* Logo, Mascotte minuscule (32px, normal) et Nom */}
+          {/* Logo Visorax Studio */}
           <a
             href="#top"
             onClick={(e) => scrollToSection(e, 'top')}
             className="flex items-center gap-2.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--lp-accent)] rounded-xl py-1 px-1.5"
             aria-label={`${CONFIG.NOM} - Accueil`}
           >
-            <VisoraMascot size={32} mood="normal" decorative={true} />
-            <span className="font-extrabold text-lg sm:text-xl tracking-tight text-[var(--lp-texte-principal)]">
-              {CONFIG.NOM}
-            </span>
+            <VisoraxLogo variant="ligne" size={36} decorative={true} />
           </a>
 
           {/* Liens d'ancre (Desktop) */}
@@ -379,9 +378,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <section className="pt-8 sm:pt-14 lg:pt-16 pb-12 sm:pb-16 lg:pb-20 flex flex-col lg:flex-row lg:items-center lg:justify-between lg:text-left gap-8 lg:gap-12 text-center">
           
           <div className="flex-1 max-w-2xl mx-auto lg:mx-0 flex flex-col items-center lg:items-start">
+            {/* Slogan officiel */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--lp-secondaire)] text-[var(--lp-accent)] text-xs font-bold border border-[var(--lp-bordure)] mb-4">
+              <span className="font-title tracking-tight">Crée, convertis, partage.</span>
+            </div>
+
             {/* Titre unique H1 */}
             <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight leading-snug sm:leading-tight text-[var(--lp-texte-principal)]">
-              Crée tes documents, images, vidéos, voix et musiques avec l&apos;IA, en quelques secondes.
+              Crée tes documents, affiches, voix et musique avec l&apos;IA, en quelques secondes.
             </h1>
 
             {/* Sous-titre */}
@@ -415,7 +419,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               
               {/* Mascotte grande */}
               <div className="shrink-0">
-                <VisoraMascot size={150} mood="normal" decorative={true} />
+                <VisoraxMascot size={150} mood="normal" decorative={true} />
               </div>
 
               {/* Bulle de dialogue en texte réel */}
@@ -423,7 +427,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Flèche de la bulle */}
                 <div className="hidden sm:block absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-[var(--lp-dominante)] border-l border-b border-[var(--lp-bordure)] rotate-45" />
                 <p className="text-sm sm:text-base font-bold leading-snug">
-                  « Salut, je suis Visora ! Dis-moi ce que tu veux créer. »
+                  « Salut, je suis Visorax ! Dis-moi ce que tu veux créer. »
                 </p>
               </div>
             </div>
@@ -464,7 +468,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </p>
             <div className="mt-4 pt-4 border-t border-[var(--lp-bordure)]">
               <p className="text-lg sm:text-xl font-bold text-[var(--lp-texte-principal)] leading-relaxed">
-                Visora fait tout ça au même endroit, depuis ton téléphone, et tu paies en FCFA.
+                Visorax Studio fait tout ça au même endroit, depuis ton téléphone, et tu paies en FCFA.
               </p>
             </div>
           </div>
@@ -521,7 +525,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   3
                 </div>
                 <h3 className="font-bold text-base text-[var(--lp-texte-principal)]">
-                  Décris ce que tu veux : Visora le crée
+                  Décris ce que tu veux : Visorax le crée
                 </h3>
                 <p className="mt-2 text-xs sm:text-sm text-[var(--lp-texte-secondaire)] leading-relaxed">
                   Tape ton prompt ou choisis ton document. Le résultat est généré directement.
@@ -530,7 +534,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               {/* Mascotte réfléchit + bulle */}
               <div className="mt-5 pt-4 border-t border-[var(--lp-bordure)] flex items-center gap-3">
-                <VisoraMascot size={44} mood="reflechit" decorative={true} />
+                <VisoraxMascot size={44} mood="reflechit" decorative={true} />
                 <div className="bg-[var(--lp-dominante)] border border-[var(--lp-bordure)] px-3 py-1.5 rounded-xl text-xs font-semibold text-[var(--lp-texte-principal)]">
                   « Je m&apos;occupe du reste. »
                 </div>
@@ -555,7 +559,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Petite mascotte interactive qui passe à content au survol/toucher d'une carte */}
             <div className="flex items-center gap-2.5 bg-[var(--lp-secondaire)] px-3.5 py-2 rounded-2xl border border-[var(--lp-bordure)]">
-              <VisoraMascot
+              <VisoraxMascot
                 size={40}
                 mood={hoveredCreation ? 'content' : 'normal'}
                 decorative={true}
@@ -596,7 +600,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <h3 className="font-bold text-base text-[var(--lp-texte-principal)]">Images</h3>
               <p className="text-xs sm:text-sm text-[var(--lp-texte-secondaire)] leading-relaxed">
-                Décris, Visora dessine.
+                Décris, Visorax dessine.
               </p>
             </div>
 
@@ -721,7 +725,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* Mention obligatoire et mascotte contente avec bulle */}
           <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-4 bg-[var(--lp-secondaire)] max-w-xl mx-auto p-4 sm:p-5 rounded-2xl border border-[var(--lp-bordure)]">
-            <VisoraMascot size={44} mood="content" decorative={true} />
+            <VisoraxMascot size={44} mood="content" decorative={true} />
             <div className="text-center sm:text-left">
               <p className="text-xs sm:text-sm font-bold text-[var(--lp-texte-principal)]">
                 « Tu vois le prix avant de lancer. »
@@ -944,7 +948,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="flex items-center gap-4 text-center sm:text-left">
                   {/* Mascotte réactive (content / reflechit) */}
                   <div className="shrink-0">
-                    <VisoraMascot size={48} mood={customMascotMood} decorative={true} />
+                    <VisoraxMascot size={48} mood={customMascotMood} decorative={true} />
                   </div>
                   <div>
                     <p className="text-2xl sm:text-3xl font-black text-[var(--lp-texte-principal)] tracking-tight">
@@ -1024,12 +1028,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ===================================================================
-            8. POURQUOI VISORA
+            8. POURQUOI VISORAX STUDIO
             =================================================================== */}
         <section className="py-12 border-t border-[var(--lp-bordure)]">
           <div className="text-center max-w-xl mx-auto mb-8">
             <h2 className="text-xl sm:text-2xl font-black text-[var(--lp-texte-principal)]">
-              Pourquoi choisir Visora
+              Pourquoi choisir Visorax Studio
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-[var(--lp-texte-secondaire)]">
               Pensé pour être simple, équitable et accessible partout.
@@ -1151,7 +1155,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {openFaqIndex === 1 && (
                 <div className="px-4 sm:px-5 pb-5 text-xs sm:text-sm text-[var(--lp-texte-secondaire)] leading-relaxed border-t border-[var(--lp-bordure)] pt-4 animate-in fade-in duration-150">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3.5 p-3 rounded-xl bg-[var(--lp-dominante)] border border-[var(--lp-bordure)] mb-3">
-                    <VisoraMascot size={44} mood={faqMascotMood} decorative={true} />
+                    <VisoraxMascot size={44} mood={faqMascotMood} decorative={true} />
                     <p className="text-xs sm:text-sm font-bold text-[var(--lp-texte-principal)]">
                       « Tes crédits sont rendus automatiquement »
                     </p>
@@ -1202,7 +1206,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </button>
               {openFaqIndex === 3 && (
                 <div className="px-4 sm:px-5 pb-5 text-xs sm:text-sm text-[var(--lp-texte-secondaire)] leading-relaxed border-t border-[var(--lp-bordure)] pt-3 animate-in fade-in duration-150">
-                  Oui, Visora est une application web progressive (PWA). Tu peux l&apos;ajouter directement sur l&apos;écran d&apos;accueil de ton smartphone (Android ou iPhone) depuis ton navigateur pour l&apos;utiliser comme une application classique.
+                  Oui, Visorax Studio est une application web progressive (PWA). Tu peux l&apos;ajouter directement sur l&apos;écran d&apos;accueil de ton smartphone (Android ou iPhone) depuis ton navigateur pour l&apos;utiliser comme une application classique.
                 </div>
               )}
             </div>
@@ -1238,13 +1242,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="bg-[var(--lp-secondaire)] rounded-3xl p-8 sm:p-12 border border-[var(--lp-bordure)] max-w-2xl mx-auto flex flex-col items-center shadow-xs">
             
             {/* Grande mascotte contente */}
-            <VisoraMascot size={140} mood="content" decorative={true} />
+            <VisoraxMascot size={140} mood="content" decorative={true} />
 
             <h2 className="mt-6 text-2xl sm:text-3xl font-black text-[var(--lp-texte-principal)]">
               Prêt à créer ?
             </h2>
             <p className="mt-2 text-xs sm:text-sm text-[var(--lp-texte-secondaire)] max-w-md">
-              Rejoins Visora dès aujourd&apos;hui et transforme tes idées en documents, visuels et sons.
+              Rejoins Visorax Studio dès aujourd&apos;hui et transforme tes idées en documents, visuels et sons.
             </p>
 
             <button

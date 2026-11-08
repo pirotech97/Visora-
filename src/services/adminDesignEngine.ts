@@ -4,7 +4,7 @@
 // ============================================================================
 
 export const PRESET_ACCENT_COLORS: Array<{ name: string; hex: string }> = [
-  { name: 'Bleu Visora', hex: '#2563EB' },
+  { name: 'Bleu Visorax', hex: '#2563EB' },
   { name: 'Émeraude', hex: '#059669' },
   { name: 'Indigo', hex: '#4F46E5' },
   { name: 'Bourgogne', hex: '#B91C1C' },

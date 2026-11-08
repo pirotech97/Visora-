@@ -17,6 +17,7 @@ import {
 import type { AppTab, UserProfile } from '../types';
 import { RechargeButton } from './RechargeButton';
 import { getSupabase } from '../services/supabase';
+import { VisoraxLogo } from './VisoraxLogo';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -111,19 +112,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
       >
         {/* En-tête du menu */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-bold text-base text-slate-900 dark:text-white leading-none">
-                Visora
-              </span>
-              <span className="block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Conversion Word fidèle
-              </span>
-            </div>
-          </div>
+          <VisoraxLogo variant="ligne" size={32} />
 
           <button
             type="button"
@@ -313,7 +302,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
           </button>
 
           <div className="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-500">
-            Visora · Version 1.0.0
+            Visorax Studio · Version 1.0.0
           </div>
         </div>
       </aside>

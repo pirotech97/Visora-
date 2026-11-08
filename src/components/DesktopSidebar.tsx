@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { AppTab, UserProfile } from '../types';
 import { getSupabase } from '../services/supabase';
+import { VisoraxLogo } from './VisoraxLogo';
 
 interface DesktopSidebarProps {
   activeTab: AppTab;
@@ -83,17 +84,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           onClick={() => onSelectTab('chat')}
           className="flex items-center gap-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-xl p-1 -m-1 cursor-pointer transition hover:opacity-90"
         >
-          <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-            <FileText className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="font-extrabold text-base text-slate-900 dark:text-white leading-none block">
-              Visora
-            </span>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              Studio IA
-            </span>
-          </div>
+          <VisoraxLogo variant="ligne" size={32} />
         </button>
       </div>
 

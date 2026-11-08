@@ -15,7 +15,7 @@ import {
 import type { MessageRecord, GeneratedImagePayload, MediaRecord, VideoProjectRecord } from '../types';
 import { DocumentPreview } from './DocumentPreview';
 import { RechargeButton } from './RechargeButton';
-import { VisoraMascot } from './VisoraMascot';
+import { VisoraxMascot } from './VisoraxMascot';
 import { VideoProjectCard } from './VideoProjectCard';
 import { MediaPlayer } from './MediaPlayer';
 import {
@@ -132,9 +132,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   // Visora (assistant) message on the left
   return (
     <div className="flex items-start gap-2.5 mb-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
-      {/* Visora Mascot Avatar (size 32) */}
+      {/* Visorax Mascot Avatar (size 32) */}
       <div className="shrink-0 mt-0.5">
-        <VisoraMascot
+        <VisoraxMascot
           size={32}
           mood={message.isLoading ? 'reflechit' : 'content'}
           decorative
@@ -176,7 +176,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 flex items-center justify-center shadow-xs">
                     <img
                       src={message.generatedImage.url}
-                      alt={message.generatedImage.prompt || 'Image générée par Visora'}
+                      alt={message.generatedImage.prompt || 'Image générée par Visorax Studio'}
                       className="max-h-[380px] w-auto max-w-full object-contain rounded-2xl"
                       loading="lazy"
                     />

@@ -1,53 +1,203 @@
 @import "tailwindcss";
 
+@theme {
+  --font-title: 'Sora', system-ui, -apple-system, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-night: var(--night);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-sky: var(--sky);
+  --color-sun: var(--sun);
+  --color-cheek: var(--cheek);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+}
+
 :root {
   /* ==========================================================================
-     JETONS DE COULEURS VISORA (Variables sémantiques claires par défaut)
+     NOUVELLE IDENTITÉ VISORAX STUDIO (Règle 60 · 30 · 10)
      ========================================================================== */
-  --surface: #ffffff;
-  --surface-elevee: #f8fafc;
-  --surface-subtile: #f1f5f9;
-  --bordure: #e2e8f0;
-  --bordure-fine: rgba(226, 232, 240, 0.9);
-  --texte: #0f172a;
-  --texte-discret: #64748b;
-  --texte-tres-discret: #94a3b8;
+  --brand: #2563EB;      /* Boutons, liens, éléments actifs */
+  --brand-ink: #FFFFFF;  /* Texte sur --brand */
+  --night: #0F172A;      /* Texte principal en clair, fond en sombre */
+  --paper: #F8FAFC;      /* Fond des pages en mode clair */
+  --card: #FFFFFF;       /* Cartes en mode clair */
+  --sky: #DBEAFE;        /* Cartes mises en avant, survols */
+  --sun: #FFB020;        /* « x » sur fond sombre/bleu, pastilles, promo */
+  --cheek: #FDA4AF;      /* Mascotte uniquement */
+  --muted: #475569;      /* Texte secondaire sur fond clair */
+  --line: #E2E8F0;       /* Bordures */
 
-  /* Couleur principale Visora (accent) */
-  --accent: #2563eb;
-  --accent-survol: #1d4ed8;
-  --accent-actif: #1e40af;
-  --accent-texte: #ffffff;
-  --accent-doux: #eff6ff;
+  /* Variables sémantiques complémentaires pour l'application */
+  --surface: #FFFFFF;
+  --surface-elevee: #F8FAFC;
+  --surface-subtile: #F1F5F9;
+  --bordure: var(--line);
+  --bordure-fine: rgba(226, 232, 240, 0.9);
+  --texte: var(--night);
+  --texte-discret: var(--muted);
+  --texte-tres-discret: #94A3B8;
+
+  --accent: var(--brand);
+  --accent-survol: #1D4ED8;
+  --accent-actif: #1E40AF;
+  --accent-texte: var(--brand-ink);
+  --accent-doux: var(--sky);
 
   /* Avertissement (crédits bas) */
-  --avertissement: #d97706;
+  --avertissement: #D97706;
   --avertissement-fond: rgba(254, 243, 199, 0.85);
-  --avertissement-texte: #92400e;
+  --avertissement-texte: #92400E;
   --avertissement-bordure: rgba(252, 211, 77, 0.6);
   --avertissement-zero-fond: rgba(254, 235, 200, 0.95);
 
   /* Danger (solde insuffisant pour le fichier) */
-  --danger: #dc2626;
+  --danger: #DC2626;
   --danger-fond: rgba(254, 242, 242, 0.92);
-  --danger-texte: #991b1b;
+  --danger-texte: #991B1B;
   --danger-bordure: rgba(252, 165, 165, 0.7);
 
   /* Hauteur dynamique avec repli */
   --vvh: 100dvh;
 
-  /* ==========================================================================
-     PALETTE 60-30-10 LANDING PAGE VISORA
-     ========================================================================== */
-  --lp-dominante: #F8FAFC;
-  --lp-secondaire: #E3ECFB;
-  --lp-accent: #2563EB;
-  --lp-accent-texte: #FFFFFF;
-  --lp-texte-principal: #0F172A;
-  --lp-texte-secondaire: #475569;
-  --lp-bordure: #CBD5E1;
+  /* Palette Landing Page (variables de compatibilité alignées sur Visorax) */
+  --lp-dominante: var(--paper);
+  --lp-secondaire: #EFF6FF;
+  --lp-accent: var(--brand);
+  --lp-accent-texte: var(--brand-ink);
+  --lp-texte-principal: var(--night);
+  --lp-texte-secondaire: var(--muted);
+  --lp-bordure: var(--line);
   --lp-succes: #16A34A;
   --lp-erreur: #DC2626;
+
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* ==========================================================================
+   MODE SOMBRE VISORAX STUDIO
+   Fond --night, cartes #1E293B, texte #F8FAFC, texte secondaire #CBD5E1,
+   bordures #334155, --brand devient #3B82F6.
+   ========================================================================== */
+.dark,
+:root[data-theme="dark"] {
+  --brand: #3B82F6;
+  --brand-ink: #FFFFFF;
+  --night: #0F172A;
+  --paper: #0F172A;
+  --card: #1E293B;
+  --sky: #1E3A8A;
+  --sun: #FFB020;
+  --cheek: #FDA4AF;
+  --muted: #CBD5E1;
+  --line: #334155;
+
+  --surface: #1E293B;
+  --surface-elevee: #243247;
+  --surface-subtile: #162032;
+  --fond-page: #0F172A;
+  --bordure: var(--line);
+  --bordure-fine: rgba(51, 65, 85, 0.85);
+  --texte: #F8FAFC;
+  --texte-discret: #CBD5E1;
+  --texte-tres-discret: #94A3B8;
+
+  --accent: #3B82F6;
+  --accent-survol: #60A5FA;
+  --accent-actif: #2563EB;
+  --accent-texte: #FFFFFF;
+  --accent-doux: rgba(59, 130, 246, 0.2);
+
+  --avertissement: #F59E0B;
+  --avertissement-fond: rgba(120, 53, 15, 0.42);
+  --avertissement-texte: #FDE68A;
+  --avertissement-bordure: rgba(217, 119, 6, 0.5);
+  --avertissement-zero-fond: rgba(146, 64, 14, 0.6);
+
+  --danger: #EF4444;
+  --danger-fond: rgba(127, 29, 29, 0.4);
+  --danger-texte: #FECACA;
+  --danger-bordure: rgba(239, 68, 68, 0.5);
+
+  --lp-dominante: #0F172A;
+  --lp-secondaire: #1E293B;
+  --lp-accent: #3B82F6;
+  --lp-accent-texte: #0F172A;
+  --lp-texte-principal: #F8FAFC;
+  --lp-texte-secondaire: #CBD5E1;
+  --lp-bordure: #334155;
+  --lp-succes: #16A34A;
+  --lp-erreur: #DC2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --brand: #3B82F6;
+    --brand-ink: #FFFFFF;
+    --night: #0F172A;
+    --paper: #0F172A;
+    --card: #1E293B;
+    --sky: #1E3A8A;
+    --sun: #FFB020;
+    --cheek: #FDA4AF;
+    --muted: #CBD5E1;
+    --line: #334155;
+
+    --surface: #1E293B;
+    --surface-elevee: #243247;
+    --surface-subtile: #162032;
+    --fond-page: #0F172A;
+    --bordure: var(--line);
+    --bordure-fine: rgba(51, 65, 85, 0.85);
+    --texte: #F8FAFC;
+    --texte-discret: #CBD5E1;
+    --texte-tres-discret: #94A3B8;
+
+    --accent: #3B82F6;
+    --accent-survol: #60A5FA;
+    --accent-actif: #2563EB;
+    --accent-texte: #FFFFFF;
+    --accent-doux: rgba(59, 130, 246, 0.2);
+
+    --avertissement: #F59E0B;
+    --avertissement-fond: rgba(120, 53, 15, 0.42);
+    --avertissement-texte: #FDE68A;
+    --avertissement-bordure: rgba(217, 119, 6, 0.5);
+    --avertissement-zero-fond: rgba(146, 64, 14, 0.6);
+
+    --danger: #EF4444;
+    --danger-fond: rgba(127, 29, 29, 0.4);
+    --danger-texte: #FECACA;
+    --danger-bordure: rgba(239, 68, 68, 0.5);
+
+    --lp-dominante: #0F172A;
+    --lp-secondaire: #1E293B;
+    --lp-accent: #3B82F6;
+    --lp-accent-texte: #0F172A;
+    --lp-texte-principal: #F8FAFC;
+    --lp-texte-secondaire: #CBD5E1;
+    --lp-bordure: #334155;
+    --lp-succes: #16A34A;
+    --lp-erreur: #DC2626;
+  }
+}
+
+/* ==========================================================================
+   TYPOGRAPHIE VISORAX STUDIO
+   Titres et logo : Sora (700 pour les titres, letter-spacing -0.02em)
+   Texte et interface : Plus Jakarta Sans (400 / 500 / 600)
+   ========================================================================== */
+h1, h2, h3, h4, h5, h6, .font-title {
+  font-family: 'Sora', system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+body, button, input, select, textarea, .font-body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
 }
 
 html,
@@ -58,6 +208,14 @@ body {
   padding: 0;
   overflow: hidden;
   overscroll-behavior: none;
+  background-color: var(--paper);
+  color: var(--night);
+}
+
+.dark html,
+.dark body {
+  background-color: var(--night);
+  color: #F8FAFC;
 }
 
 #root {
@@ -66,92 +224,6 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-/* ==========================================================================
-   THÈME SOMBRE : SYSTÈME ET FORÇAGE EXPLICITE (.dark ou data-theme="dark")
-   ========================================================================== */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --surface: #121826;
-    --surface-elevee: #1a2234;
-    --surface-subtile: #172033;
-    --fond-page: #0b0f19;
-    --bordure: #26334a;
-    --bordure-fine: rgba(51, 65, 85, 0.85);
-    --texte: #f8fafc;
-    --texte-discret: #94a3b8;
-    --texte-tres-discret: #64748b;
-
-    --accent: #3b82f6;
-    --accent-survol: #60a5fa;
-    --accent-actif: #2563eb;
-    --accent-texte: #ffffff;
-    --accent-doux: rgba(59, 130, 246, 0.2);
-
-    --avertissement: #f59e0b;
-    --avertissement-fond: rgba(120, 53, 15, 0.42);
-    --avertissement-texte: #fde68a;
-    --avertissement-bordure: rgba(217, 119, 6, 0.5);
-    --avertissement-zero-fond: rgba(146, 64, 14, 0.6);
-
-    --danger: #ef4444;
-    --danger-fond: rgba(127, 29, 29, 0.4);
-    --danger-texte: #fecaca;
-    --danger-bordure: rgba(239, 68, 68, 0.5);
-
-    /* Palette 60-30-10 Landing Page (Mode sombre) */
-    --lp-dominante: #0B1220;
-    --lp-secondaire: #16223A;
-    --lp-accent: #3B82F6;
-    --lp-accent-texte: #0B1220;
-    --lp-texte-principal: #E2E8F0;
-    --lp-texte-secondaire: #94A3B8;
-    --lp-bordure: #26334a;
-    --lp-succes: #16A34A;
-    --lp-erreur: #DC2626;
-  }
-}
-
-:root[data-theme="dark"],
-.dark {
-  --surface: #121826;
-  --surface-elevee: #1a2234;
-  --surface-subtile: #172033;
-  --fond-page: #0b0f19;
-  --bordure: #26334a;
-  --bordure-fine: rgba(51, 65, 85, 0.85);
-  --texte: #f8fafc;
-  --texte-discret: #94a3b8;
-  --texte-tres-discret: #64748b;
-
-  --accent: #3b82f6;
-  --accent-survol: #60a5fa;
-  --accent-actif: #2563eb;
-  --accent-texte: #ffffff;
-  --accent-doux: rgba(59, 130, 246, 0.2);
-
-  --avertissement: #f59e0b;
-  --avertissement-fond: rgba(120, 53, 15, 0.42);
-  --avertissement-texte: #fde68a;
-  --avertissement-bordure: rgba(217, 119, 6, 0.5);
-  --avertissement-zero-fond: rgba(146, 64, 14, 0.6);
-
-  --danger: #ef4444;
-  --danger-fond: rgba(127, 29, 29, 0.4);
-  --danger-texte: #fecaca;
-  --danger-bordure: rgba(239, 68, 68, 0.5);
-
-  /* Palette 60-30-10 Landing Page (Mode sombre) */
-  --lp-dominante: #0B1220;
-  --lp-secondaire: #16223A;
-  --lp-accent: #3B82F6;
-  --lp-accent-texte: #0B1220;
-  --lp-texte-principal: #E2E8F0;
-  --lp-texte-secondaire: #94A3B8;
-  --lp-bordure: #26334a;
-  --lp-succes: #16A34A;
-  --lp-erreur: #DC2626;
 }
 
 /* ==========================================================================
@@ -214,8 +286,8 @@ body {
 /* Effet de survol uniquement avec une souris */
 @media (hover: hover) and (pointer: fine) {
   .empty-chat-card:not([aria-disabled="true"]):hover {
-    background-color: #f8fafc;
-    border-color: #cbd5e1;
+    background-color: #F8FAFC;
+    border-color: #CBD5E1;
     transform: translateY(-1px);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   }
@@ -282,7 +354,7 @@ body {
 
 .dark .text-slate-700,
 .dark .text-slate-600 {
-  color: #cbd5e1;
+  color: #CBD5E1;
 }
 
 .dark .text-slate-500 {
@@ -335,7 +407,7 @@ body {
 
 .dark .text-amber-600,
 .dark .text-amber-700 {
-  color: #fbbf24 !important;
+  color: #FBBF24 !important;
 }
 
 .dark .border-amber-200,
@@ -378,21 +450,21 @@ body {
 .dark .bg-blue-50\/80,
 .dark .bg-blue-50\/90 {
   background-color: var(--accent-doux) !important;
-  color: #93c5fd !important;
+  color: #93C5FD !important;
   border-color: rgba(59, 130, 246, 0.35) !important;
 }
 
 .dark .text-blue-700,
 .dark .text-blue-800,
 .dark .text-blue-900 {
-  color: #93c5fd !important;
+  color: #93C5FD !important;
 }
 
 .dark .bg-blue-100,
 .dark .bg-blue-100\/70,
 .dark .bg-blue-100\/90 {
   background-color: rgba(37, 99, 235, 0.35) !important;
-  color: #bfdbfe !important;
+  color: #BFDBFE !important;
 }
 
 /* Pastilles et bannières vertes (WhatsApp / Bienvenue) */
@@ -400,24 +472,24 @@ body {
 .dark .bg-emerald-50\/70,
 .dark .bg-emerald-50\/80 {
   background-color: rgba(16, 185, 129, 0.18) !important;
-  color: #a7f3d0 !important;
+  color: #A7F3D0 !important;
   border-color: rgba(16, 185, 129, 0.35) !important;
 }
 
 .dark .text-emerald-950,
 .dark .text-emerald-900,
 .dark .text-emerald-800 {
-  color: #a7f3d0 !important;
+  color: #A7F3D0 !important;
 }
 
 .dark .text-emerald-600,
 .dark .text-emerald-700 {
-  color: #34d399 !important;
+  color: #34D399 !important;
 }
 
 .dark .bg-emerald-100 {
   background-color: rgba(16, 185, 129, 0.3) !important;
-  color: #a7f3d0 !important;
+  color: #A7F3D0 !important;
 }
 
 /* Cartes d'accueil du chat vide en mode sombre */
@@ -432,5 +504,3 @@ body {
     border-color: #475569 !important;
   }
 }
-
-

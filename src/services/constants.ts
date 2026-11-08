@@ -13,13 +13,13 @@ export const SEUIL_ALERTE = 5;
 
 /**
  * Construit l'URL WhatsApp avec le message sur trois lignes :
- * "Bonjour, je souhaite recharger mes crédits Visora."
+ * "Bonjour, je souhaite recharger mes crédits Visorax Studio."
  * "E-mail : [e-mail de l'utilisateur]"
  * "Solde actuel : [N] crédit(s)"
  */
 export function getWhatsAppRechargeUrl(email: string, credits: number = 0): string {
   const lines = [
-    'Bonjour, je souhaite recharger mes crédits Visora.',
+    'Bonjour, je souhaite recharger mes crédits Visorax Studio.',
     `E-mail : ${email || ''}`,
     `Solde actuel : ${credits} crédit(s)`
   ];

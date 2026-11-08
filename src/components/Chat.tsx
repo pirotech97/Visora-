@@ -20,7 +20,8 @@ import { PWAInstallButton } from './PWAInstallButton';
 import { CreditsModal } from './CreditsModal';
 import { RechargeButton } from './RechargeButton';
 import { BottomNav } from './BottomNav';
-import { VisoraMascot } from './VisoraMascot';
+import { VisoraxMascot } from './VisoraxMascot';
+import { VisoraxLogo } from './VisoraxLogo';
 import { VisoraHelpModal } from './VisoraHelpModal';
 import { CreateImageModal, ImageTabMode, QualityTier } from './CreateImageModal';
 import { CreateMediaModal } from './CreateMediaModal';
@@ -1082,20 +1083,11 @@ export const Chat: React.FC<ChatProps> = ({
               <Menu className="w-5 h-5" />
             </button>
           )}
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
-            <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Visora</h1>
-              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/50 shrink-0">
-                Word .docx
-              </span>
-            </div>
-            {/* Sous 480 px, masque le sous-titre "Extraction fidèle de documents" */}
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate hidden min-[480px]:block">
-              Extraction fidèle de documents
-            </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <VisoraxLogo variant="ligne" size={32} />
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/50 shrink-0">
+              Word .docx
+            </span>
           </div>
         </div>
 
@@ -1147,7 +1139,7 @@ export const Chat: React.FC<ChatProps> = ({
         <div className="shrink-0 bg-blue-50/90 dark:bg-blue-950/60 border-b border-blue-100 dark:border-blue-900/50 px-3 py-1.5 flex items-center justify-between text-xs text-blue-900 dark:text-blue-200">
           <div className="flex items-center gap-1.5 truncate mr-2">
             <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-            <span className="truncate">Bienvenue sur Visora ! Convertis tes documents (PDF ou photo) en fichiers Word fidèles.</span>
+            <span className="truncate">Bienvenue sur Visorax Studio ! Convertis tes documents (PDF ou photo) en fichiers Word fidèles.</span>
           </div>
           <button
             type="button"
@@ -1285,7 +1277,7 @@ export const Chat: React.FC<ChatProps> = ({
                     type="button"
                     onClick={() => handleOpenCreateImage({ mode: 'image' })}
                     className="empty-chat-card w-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-2xs px-4 flex items-center gap-3.5 select-none cursor-pointer text-left hover:border-blue-300 dark:hover:border-blue-600 transition"
-                    title="Créer une image avec Visora"
+                    title="Créer une image avec Visorax Studio"
                   >
                     <div className="empty-chat-icon w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                       <ImageIcon className="w-5 h-5" />
@@ -1345,15 +1337,15 @@ export const Chat: React.FC<ChatProps> = ({
           </button>
         )}
 
-        {/* Bouton Flottant Mascotte "Aide Visora" */}
+        {/* Bouton Flottant Mascotte "Aide Visorax" */}
         <button
           type="button"
           onClick={() => setIsHelpOpen((prev) => !prev)}
           className="absolute bottom-3 right-3 z-30 w-12 h-12 min-w-[48px] min-h-[48px] rounded-full bg-white dark:bg-slate-800 shadow-md hover:shadow-lg border border-slate-200/90 dark:border-slate-700 flex items-center justify-center transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          aria-label="Aide Visora"
-          title="Aide Visora"
+          aria-label="Aide Visorax"
+          title="Aide Visorax"
         >
-          <VisoraMascot size={40} mood={isHelpOpen ? 'content' : 'normal'} decorative />
+          <VisoraxMascot size={40} mood={isHelpOpen ? 'content' : 'normal'} decorative />
         </button>
       </div>
 

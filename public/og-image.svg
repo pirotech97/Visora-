@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <style>
+      .title-visora { font-family: 'Sora', sans-serif, system-ui; font-weight: 800; font-size: 88px; fill: #FFFFFF; letter-spacing: -0.04em; }
+      .title-x { font-family: 'Sora', sans-serif, system-ui; font-weight: 800; font-size: 88px; fill: #FFB020; letter-spacing: -0.04em; }
+      .title-studio { font-family: 'Sora', sans-serif, system-ui; font-weight: 600; font-size: 28px; fill: #93C5FD; letter-spacing: 0.5em; }
+      .slogan { font-family: 'Plus Jakarta Sans', sans-serif, system-ui; font-weight: 700; font-size: 38px; fill: #F8FAFC; }
+      .subtitle { font-family: 'Plus Jakarta Sans', sans-serif, system-ui; font-weight: 500; font-size: 24px; fill: #94A3B8; }
+    </style>
+  </defs>
+  <!-- Gauche : fond brand avec mascotte -->
+  <rect x="0" y="0" width="460" height="630" fill="#2563EB" />
+  <g transform="translate(67.5, 135) scale(2.903)">
+    
+  <!-- corps : une feuille au coin plié -->
+  <path d="M30 10 H76 L100 34 V92 Q100 110 82 110 H30 Q12 110 12 92 V28 Q12 10 30 10 Z" fill="#FFFFFF" />
+  <!-- coin plié -->
+  <path d="M76 10 V26 Q76 34 84 34 H100 Z" fill="#BFDBFE" />
+  <!-- lignes de texte -->
+  <path d="M30 97 H78" stroke="#2563EB" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" />
+  <path d="M30 103 H62" stroke="#2563EB" stroke-opacity="0.25" stroke-width="3" stroke-linecap="round" />
+  <!-- joues -->
+  <circle cx="28" cy="74" r="5" fill="#FDA4AF" opacity="0.6" />
+  <circle cx="84" cy="74" r="5" fill="#FDA4AF" opacity="0.6" />
+  <!-- yeux -->
+  <circle cx="40" cy="58" r="9.5" fill="#EFF6FF" />
+  <circle cx="72" cy="58" r="9.5" fill="#EFF6FF" />
+  <circle cx="41" cy="59" r="4.6" fill="#0F172A" />
+  <circle cx="73" cy="59" r="4.6" fill="#0F172A" />
+  <circle cx="43" cy="57" r="1.5" fill="#FFFFFF" />
+  <circle cx="75" cy="57" r="1.5" fill="#FFFFFF" />
+  <!-- bouche -->
+  <path d="M46 78 Q56 88 66 78" stroke="#2563EB" stroke-width="4" fill="none" stroke-linecap="round" />
+
+  </g>
+  <!-- Droite : fond night avec logo et slogan -->
+  <rect x="460" y="0" width="740" height="630" fill="#0F172A" />
+  <!-- Logo -->
+  <text x="540" y="230" class="title-visora">visora<tspan class="title-x">x</tspan></text>
+  <text x="545" y="285" class="title-studio">STUDIO</text>
+  <!-- Séparateur -->
+  <rect x="540" y="330" width="80" height="4" rx="2" fill="#FFB020" />
+  <!-- Slogan -->
+  <text x="540" y="410" class="slogan">Crée, convertis, partage.</text>
+  <!-- Sous-titre -->
+  <text x="540" y="465" class="subtitle">Documents, affiches, voix et musique depuis ton téléphone.</text>
+</svg>
