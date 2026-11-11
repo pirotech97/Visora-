@@ -264,13 +264,54 @@ body {
 }
 
 /* ==========================================================================
-   RESPECT DE PREFERS-REDUCED-MOTION
+   THÈME SOMBRE EXCLUSIF DE LA LANDING PAGE VISORAX STUDIO
    ========================================================================== */
+.landing-dark {
+  --bg: #0B1220;
+  --surface: #131C2E;
+  --surface-2: #1B2740;
+  --border: #2A3A57;
+  --text: #F8FAFC;
+  --muted: #CBD5E1;
+  --blue: #3B82F6;
+  --blue-strong: #2563EB;
+  --sun: #FFB020;
+  color-scheme: dark;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* ==========================================================================
+   RESPECT DE PREFERS-REDUCED-MOTION ET SCROLL REVEAL FIABLE
+   Par défaut, tous les éléments sont visibles (aucun texte masqué si JS inactif).
+   Seuls les conteneurs avec .js-active et IntersectionObserver animent l'entrée.
+   ========================================================================== */
+.reveal-on-scroll {
+  opacity: 1;
+  transform: none;
+}
+
+.landing-dark.js-active .reveal-on-scroll:not(.is-visible) {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.landing-dark.js-active .reveal-on-scroll.is-visible {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll,
+  .landing-dark.js-active .reveal-on-scroll:not(.is-visible),
   .composer-reduced-motion,
   .composer-reduced-motion * {
     transition: none !important;
     animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 

@@ -25,7 +25,7 @@ import { VisoraxLogo } from './VisoraxLogo';
 import { VisoraHelpModal } from './VisoraHelpModal';
 import { CreateImageModal, ImageTabMode, QualityTier } from './CreateImageModal';
 import { CreateMediaModal } from './CreateMediaModal';
-import { openWhatsAppRecharge } from '../services/constants';
+import { triggerOpenRecharge } from '../services/paiementService';
 import { processDocumentFile } from '../services/pdfConverter';
 import { convertDocxToPdfBlob } from '../services/docxToPdf';
 import { cropFiguresInDocument } from '../services/figureCropper';
@@ -59,6 +59,7 @@ interface ChatProps {
   onCreditsChange?: (credits: number | null) => void;
   createImageTrigger?: number;
   onImageCreated?: (payload: GeneratedImagePayload) => void;
+  onOpenRecharge?: () => void;
 }
 
 const WELCOME_TEXT =
@@ -75,7 +76,8 @@ export const Chat: React.FC<ChatProps> = ({
   onOpenMenu,
   onCreditsChange,
   createImageTrigger,
-  onImageCreated
+  onImageCreated,
+  onOpenRecharge
 }) => {
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -1252,22 +1254,22 @@ export const Chat: React.FC<ChatProps> = ({
                     </div>
                   </button>
 
-                  {/* 3. "Recharger mes crédits" / "Ajoute des pages par WhatsApp" : même action que le bouton "Recharger". */}
+                  {/* 3. "Recharger mes crédits" : ouvre la modale de recharge Mobile Money */}
                   <button
                     type="button"
-                    onClick={() => openWhatsAppRecharge(user.email, credits ?? 0)}
-                    className="empty-chat-card w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs px-4 flex items-center gap-3.5 select-none cursor-pointer text-left"
+                    onClick={() => (onOpenRecharge ? onOpenRecharge() : triggerOpenRecharge())}
+                    className="empty-chat-card w-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-2xs px-4 flex items-center gap-3.5 select-none cursor-pointer text-left hover:border-blue-300 dark:hover:border-blue-600 transition"
                     title="Recharger mes crédits"
                   >
-                    <div className="empty-chat-icon w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                      <Coins className="w-5 h-5 text-emerald-600" />
+                    <div className="empty-chat-icon w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0">
+                      <Coins className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm text-slate-900 truncate">
+                      <div className="font-bold text-sm text-slate-900 dark:text-white truncate">
                         Recharger mes crédits
                       </div>
-                      <div className="text-xs text-slate-500 truncate mt-0.5">
-                        Ajoute des pages par WhatsApp
+                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        Paiement Mobile Money sécurisé par SasPay
                       </div>
                     </div>
                   </button>
@@ -1364,7 +1366,7 @@ export const Chat: React.FC<ChatProps> = ({
             onFocusTextarea={handleFocusTextarea}
             credits={credits}
             userEmail={user.email}
-            onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+            onOpenRecharge={onOpenRecharge || triggerOpenRecharge}
             onOpenCreateImage={() => handleOpenCreateImage({ mode: 'image' })}
             onOpenCreateMedia={handleOpenCreateMedia}
           />
@@ -1394,7 +1396,7 @@ export const Chat: React.FC<ChatProps> = ({
         onAddFileSelect={(file) => {
           handleTriggerExtract(file);
         }}
-        onRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+        onRecharge={onOpenRecharge || triggerOpenRecharge}
         onGoToHistory={() => {
           if (onGoToHistory) onGoToHistory();
           else onTabChange?.('history');
@@ -1408,6 +1410,7 @@ export const Chat: React.FC<ChatProps> = ({
         isOpen={isCreditsModalOpen}
         onClose={() => setIsCreditsModalOpen(false)}
         onRefreshCredits={refreshCredits}
+        onOpenRecharge={onOpenRecharge || triggerOpenRecharge}
       />
 
       {/* History Modal */}
@@ -1429,7 +1432,7 @@ export const Chat: React.FC<ChatProps> = ({
           onCreditsChange?.(c);
         }}
         onImageGenerated={handleImageGenerated}
-        onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+        onOpenRecharge={onOpenRecharge || triggerOpenRecharge}
         initialMode={createImageInitialData.mode}
         initialPhotoUrl={createImageInitialData.photoUrl}
         initialPrompt={createImageInitialData.prompt}
@@ -1449,7 +1452,7 @@ export const Chat: React.FC<ChatProps> = ({
         }}
         onMediaGenerated={handleMediaGenerated}
         onProjectGenerated={handleProjectGenerated}
-        onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+        onOpenRecharge={onOpenRecharge || triggerOpenRecharge}
         initialTab={createMediaInitialTab}
       />
 

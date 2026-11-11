@@ -15,6 +15,7 @@ import {
 import type { AppTab, UserProfile } from '../types';
 import { getSupabase } from '../services/supabase';
 import { VisoraxLogo } from './VisoraxLogo';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface DesktopSidebarProps {
   activeTab: AppTab;
@@ -144,6 +145,10 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             </button>
           );
         })}
+
+        <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800">
+          <PWAInstallButton variant="sidebar" />
+        </div>
       </nav>
 
       {/* 4. Footer utilisateur */}

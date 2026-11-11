@@ -18,6 +18,7 @@ import type { AppTab, UserProfile } from '../types';
 import { RechargeButton } from './RechargeButton';
 import { getSupabase } from '../services/supabase';
 import { VisoraxLogo } from './VisoraxLogo';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -268,6 +269,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
           )}
 
           <div className="pt-2 my-2 border-t border-slate-100 dark:border-slate-800" />
+
+          {/* Entrée manuelle d'installation */}
+          <PWAInstallButton variant="sidebar" onClick={onClose} />
 
           {onOpenHelp && (
             <button

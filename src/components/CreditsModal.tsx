@@ -12,6 +12,7 @@ interface CreditsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRefreshCredits?: () => void;
+  onOpenRecharge?: () => void;
 }
 
 function formatFrenchDate(dateStr: string): string {
@@ -52,6 +53,8 @@ function getMotifLabel(motif: string): string {
       return 'Remboursement';
     case 'achat_manuel':
       return 'Recharge';
+    case 'achat':
+      return 'Achat de crédits';
     default:
       return motif || 'Transaction';
   }
@@ -62,7 +65,8 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
   credits,
   isOpen,
   onClose,
-  onRefreshCredits
+  onRefreshCredits,
+  onOpenRecharge
 }) => {
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,24 +167,28 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
           </button>
         </div>
 
-        {/* En haut du panneau : instructions de recharge, TEXTE_TARIF, bouton Recharger */}
-        <div className="p-4 bg-emerald-50/70 border-b border-emerald-100/90 shrink-0 space-y-3">
+        {/* En haut du panneau : instructions de recharge et bouton Recharger */}
+        <div className="p-4 bg-blue-50/80 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/60 shrink-0 space-y-3">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <MessageCircle className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Coins className="w-4 h-4" />
             </div>
-            <p className="text-xs text-emerald-950 font-medium leading-relaxed">
-              Pour recharger, écris-nous sur WhatsApp, paie par Mobile Money, et tes crédits sont ajoutés dès confirmation du paiement.
+            <p className="text-xs text-blue-950 dark:text-blue-200 font-medium leading-relaxed">
+              1 crédit = 20 FCFA. Paiement sécurisé par Mobile Money (SasPay). Tes crédits sont ajoutés automatiquement dès confirmation.
             </p>
           </div>
 
-          {Boolean(TEXTE_TARIF && (TEXTE_TARIF as string).trim() !== '') && (
-            <div className="p-2.5 rounded-xl bg-white/95 border border-emerald-200/60 text-xs text-slate-700 font-medium whitespace-pre-wrap leading-relaxed shadow-2xs">
-              {(TEXTE_TARIF as string).trim()}
-            </div>
-          )}
-
-          <RechargeButton email={user.email} credits={currentCredits} variant="primary" />
+          <RechargeButton
+            email={user.email}
+            credits={currentCredits}
+            variant="primary"
+            onClick={() => {
+              onClose();
+              if (onOpenRecharge) {
+                onOpenRecharge();
+              }
+            }}
+          />
         </div>
 
         {/* Current Balance Banner */}

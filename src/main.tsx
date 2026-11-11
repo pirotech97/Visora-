@@ -27,29 +27,14 @@ setupDynamicViewport();
 
 createRoot(document.getElementById('root')!).render(<App />);
 
-// Enregistrement du Service Worker en production uniquement (évite le cache des chunks Vite en dev)
+// Enregistrement du Service Worker PWA
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  if (import.meta.env.DEV) {
-    navigator.serviceWorker.getRegistrations().then((regs) => {
-      for (const reg of regs) {
-        reg.unregister();
-      }
-    });
-    if ('caches' in window) {
-      caches.keys().then((names) => {
-        for (const name of names) {
-          caches.delete(name);
-        }
-      });
-    }
-  } else {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => {
-          reg.update().catch(() => {});
-        })
-        .catch(() => {});
-    });
-  }
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        reg.update().catch(() => {});
+      })
+      .catch(() => {});
+  });
 }

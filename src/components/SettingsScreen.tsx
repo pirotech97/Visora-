@@ -16,6 +16,7 @@ import type { UserProfile } from '../types';
 import { getStoredTheme, setStoredTheme, type ThemeMode } from '../services/theme';
 import { PWAInstallButton } from './PWAInstallButton';
 import { openWhatsAppRecharge } from '../services/constants';
+import { useInstallation } from '../hooks/useInstallation';
 
 interface SettingsScreenProps {
   user: UserProfile;
@@ -35,6 +36,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   isCloudReady
 }) => {
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
+  const { isInstallable, isInstalled } = useInstallation();
 
   const handleThemeSelect = (mode: ThemeMode) => {
     setTheme(mode);
@@ -198,10 +200,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
             </button>
 
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Installer l'application</span>
-              <PWAInstallButton />
-            </div>
+            {isInstallable && !isInstalled && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Installer l'application</span>
+                <PWAInstallButton />
+              </div>
+            )}
           </div>
 
           {/* Déconnexion */}

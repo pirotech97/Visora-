@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import type { PendingFile, ConvertedPage } from '../types';
 import { processDocumentFile } from '../services/pdfConverter';
-import { SEUIL_ALERTE, openWhatsAppRecharge } from '../services/constants';
+import { SEUIL_ALERTE } from '../services/constants';
+import { triggerOpenRecharge } from '../services/paiementService';
 
 // Largeur maximale facile à modifier
 export const COMPOSER_MAX_WIDTH = '640px';
@@ -253,7 +254,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     if (onOpenRecharge) {
       onOpenRecharge();
     } else {
-      openWhatsAppRecharge(userEmail, credits ?? 0);
+      triggerOpenRecharge();
     }
   };
 

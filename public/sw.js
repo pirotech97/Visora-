@@ -53,12 +53,17 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // 1. Ne jamais intercepter ni mettre en cache la réinitialisation de mot de passe, les requêtes API, Supabase ou les scripts de dev Vite
+  // 1. Ne jamais intercepter ni mettre en cache la réinitialisation de mot de passe, les requêtes API, Supabase, l'authentification ni les scripts de dev Vite
   if (
     url.pathname.includes('reinitialiser-mot-de-passe') ||
     url.pathname.startsWith('/api') ||
     url.hostname.includes('supabase') ||
+    url.pathname.includes('supabase') ||
     url.pathname.includes('admin-api') ||
+    url.pathname.includes('auth/v1') ||
+    url.pathname.includes('functions/v1') ||
+    url.pathname.includes('rest/v1') ||
+    url.pathname.includes('storage/v1') ||
     url.pathname.includes('node_modules') ||
     url.pathname.includes('@vite') ||
     url.pathname.includes('@fs') ||

@@ -3,8 +3,12 @@ import { LandingPage } from './components/LandingPage';
 import { AuthScreen } from './components/AuthScreen';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { Chat } from './components/Chat';
-import { ToolsScreen } from './components/ToolsScreen';
-import { HistoryScreen } from './components/HistoryScreen';
+const ToolsScreen = React.lazy(() =>
+  import('./components/ToolsScreen').then((m) => ({ default: m.ToolsScreen }))
+);
+const HistoryScreen = React.lazy(() =>
+  import('./components/HistoryScreen').then((m) => ({ default: m.HistoryScreen }))
+);
 import { ProfileScreen } from './components/ProfileScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { AdminScreen } from './components/AdminScreen';
@@ -13,9 +17,12 @@ import { DesktopSidebar } from './components/DesktopSidebar';
 import { OfflineBanner } from './components/OfflineBanner';
 import { PWAUpdateBanner } from './components/PWAUpdateBanner';
 import { AnnoncePopupHost } from './components/AnnoncePopupHost';
-import { AlertTriangle, X } from 'lucide-react';
+import { PopupInstallation } from './components/PopupInstallation';
+import { RechargeModal } from './components/RechargeModal';
+import { PaymentReturnModal } from './components/PaymentReturnModal';
+import { EVENT_OPEN_RECHARGE, verifierPaiement } from './services/paiementService';
+import { AlertTriangle, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { fetchServerConfig } from './services/api';
-import { openWhatsAppRecharge } from './services/constants';
 import {
   initSupabase,
   restoreSessionUser,
@@ -49,6 +56,80 @@ export default function App() {
   const [credits, setCredits] = useState<number | null>(null);
   const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
   const isVoluntarySignOut = React.useRef(false);
+
+  // Gestion de la recharge et du retour de paiement SasPay
+  const [isRechargeOpen, setIsRechargeOpen] = useState(false);
+  const [safetyNetToast, setSafetyNetToast] = useState<string | null>(null);
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const pid = searchParams.get('paiement');
+      if (pid) {
+        // Nettoyer l'URL immédiatement sans recharger la page
+        searchParams.delete('paiement');
+        const newSearch = searchParams.toString();
+        const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+        window.history.replaceState(null, '', newUrl || '/');
+        sessionStorage.setItem('visorax_pending_paiement_id', pid);
+        return pid;
+      }
+      return sessionStorage.getItem('visorax_pending_paiement_id');
+    } catch {
+      return null;
+    }
+  });
+
+  // Si retour de paiement sans être connecté, inviter à se connecter pour reprendre la vérification
+  useEffect(() => {
+    if (!loading && !user && pendingPaymentId) {
+      setUnauthView('signin');
+      setAuthInitialMode('signin');
+      setSessionExpiredMsg('Connecte-toi pour finaliser la vérification de ton paiement.');
+    }
+  }, [loading, user, pendingPaymentId]);
+
+  // Écoute de l'événement global d'ouverture de la recharge
+  useEffect(() => {
+    const handleOpen = () => setIsRechargeOpen(true);
+    window.addEventListener(EVENT_OPEN_RECHARGE, handleOpen);
+    return () => window.removeEventListener(EVENT_OPEN_RECHARGE, handleOpen);
+  }, []);
+
+  // Filet de sécurité au chargement de l'app (une fois par session)
+  useEffect(() => {
+    if (!user) return;
+    const sessionKey = `visorax_safety_net_${user.id}`;
+    try {
+      if (sessionStorage.getItem(sessionKey)) return;
+      sessionStorage.setItem(sessionKey, '1');
+    } catch {}
+
+    verifierPaiement()
+      .then((res) => {
+        if (res.ok && res.credites && res.credites > 0) {
+          setSafetyNetToast(`+${res.credites} crédits ajoutés suite à ton paiement`);
+          if (typeof res.solde === 'number') {
+            setCredits(res.solde);
+          } else {
+            fetchUserCredits(user.id).then((c) => setCredits(c));
+          }
+        }
+      })
+      .catch(() => {
+        // Silencieux si rien en attente ou erreur
+      });
+  }, [user]);
+
+  // Fermeture automatique du toast du filet de sécurité après 7 secondes
+  useEffect(() => {
+    if (safetyNetToast) {
+      const timer = setTimeout(() => {
+        setSafetyNetToast(null);
+      }, 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [safetyNetToast]);
 
   // Synchronisation de l'URL avec l'onglet actif (/admin <-> /)
   useEffect(() => {
@@ -321,6 +402,11 @@ export default function App() {
         />
       )}
 
+      {/* Popup d'installation de l'application (PWA) */}
+      {user && !isResetPassword && !loading && (
+        <PopupInstallation isAuthenticated={true} />
+      )}
+
       {isResetPassword ? (
         <div className="flex-1 min-h-0 w-full h-full overflow-y-auto overscroll-contain">
           <ResetPasswordScreen
@@ -348,7 +434,7 @@ export default function App() {
               credits={credits}
               onSignOut={handleSignOut}
               onOpenCreateImage={handleOpenCreateImage}
-              onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
+              onOpenRecharge={() => setIsRechargeOpen(true)}
             />
 
             {/* Contenu principal occupant la place restante à droite */}
@@ -383,39 +469,48 @@ export default function App() {
                   onCreditsChange={(c) => setCredits(c)}
                   createImageTrigger={createImageTrigger}
                   onImageCreated={handleImageCreated}
+                  onOpenRecharge={() => setIsRechargeOpen(true)}
                 />
               )}
 
-              {activeTab === 'tools' && (
-                <ToolsScreen
-                  user={user}
-                  credits={credits}
-                  onGoToChat={() => setActiveTab('chat')}
-                  onGoToHistory={() => setActiveTab('history')}
-                  onOpenMenu={() => setIsMenuOpen(true)}
-                  onTabChange={(tab) => setActiveTab(tab)}
-                  onOpenCreateImage={handleOpenCreateImage}
-                  onOpenRecharge={() => openWhatsAppRecharge(user.email, credits ?? 0)}
-                  onCreditsChange={(c) => setCredits(c)}
-                />
-              )}
+              <React.Suspense
+                fallback={
+                  <div className="flex-1 flex items-center justify-center p-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                  </div>
+                }
+              >
+                {activeTab === 'tools' && (
+                  <ToolsScreen
+                    user={user}
+                    credits={credits}
+                    onGoToChat={() => setActiveTab('chat')}
+                    onGoToHistory={() => setActiveTab('history')}
+                    onOpenMenu={() => setIsMenuOpen(true)}
+                    onTabChange={(tab) => setActiveTab(tab)}
+                    onOpenCreateImage={handleOpenCreateImage}
+                    onOpenRecharge={() => setIsRechargeOpen(true)}
+                    onCreditsChange={(c) => setCredits(c)}
+                  />
+                )}
 
-              {activeTab === 'history' && (
-                <HistoryScreen
-                  user={user}
-                  refreshTrigger={historyRefreshKey}
-                  onGoToChat={() => setActiveTab('chat')}
-                  activeTab="history"
-                  onTabChange={(tab) => setActiveTab(tab)}
-                  onOpenMenu={() => setIsMenuOpen(true)}
-                  onOpenCreateImage={handleOpenCreateImage}
-                  images={images}
-                  loadingImages={loadingImages}
-                  imagesError={imagesError}
-                  onReloadImages={loadUserImages}
-                  onUpdateFreshUrl={handleUpdateFreshUrl}
-                />
-              )}
+                {activeTab === 'history' && (
+                  <HistoryScreen
+                    user={user}
+                    refreshTrigger={historyRefreshKey}
+                    onGoToChat={() => setActiveTab('chat')}
+                    activeTab="history"
+                    onTabChange={(tab) => setActiveTab(tab)}
+                    onOpenMenu={() => setIsMenuOpen(true)}
+                    onOpenCreateImage={handleOpenCreateImage}
+                    images={images}
+                    loadingImages={loadingImages}
+                    imagesError={imagesError}
+                    onReloadImages={loadUserImages}
+                    onUpdateFreshUrl={handleUpdateFreshUrl}
+                  />
+                )}
+              </React.Suspense>
 
               {activeTab === 'profile' && (
                 <ProfileScreen
@@ -460,7 +555,7 @@ export default function App() {
           </div>
         </div>
       ) : unauthView === 'landing' ? (
-        <div className="flex-1 min-h-0 w-full h-full overflow-y-auto overscroll-contain">
+        <div className="flex-1 min-h-0 w-full h-full overflow-y-auto overscroll-contain bg-[#0B1220]">
           <LandingPage
             onOpenSignIn={() => {
               setAuthInitialMode('signin');
@@ -489,6 +584,61 @@ export default function App() {
             }}
           />
         </div>
+      )}
+
+      {/* Toast discret du filet de sécurité (+X crédits) */}
+      {safetyNetToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] px-4 py-3 rounded-2xl bg-emerald-600 text-white shadow-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300 select-none"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xs sm:text-sm font-bold font-['Sora',sans-serif] truncate">
+              {safetyNetToast}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSafetyNetToast(null)}
+            className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer shrink-0 min-h-[32px] min-w-[32px] flex items-center justify-center"
+            aria-label="Fermer le message"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Modale d'achat de crédits SasPay Mobile Money */}
+      {user && isRechargeOpen && (
+        <RechargeModal
+          isOpen={isRechargeOpen}
+          onClose={() => setIsRechargeOpen(false)}
+          userId={user.id}
+          currentCredits={credits}
+          onCreditsUpdated={(newBalance) => {
+            setCredits(newBalance);
+          }}
+        />
+      )}
+
+      {/* Modale de vérification du retour de paiement (?paiement=<uuid>) */}
+      {user && pendingPaymentId && (
+        <PaymentReturnModal
+          commandeId={pendingPaymentId}
+          onClose={() => setPendingPaymentId(null)}
+          onPaymentSuccess={(newBalance) => {
+            setCredits(newBalance);
+            setPendingPaymentId(null);
+          }}
+          onRetryRecharge={() => {
+            setPendingPaymentId(null);
+            setIsRechargeOpen(true);
+          }}
+        />
       )}
     </div>
   );

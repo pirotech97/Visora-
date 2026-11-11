@@ -440,6 +440,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
         return 'Bonus d’inscription';
       case 'recharge':
         return 'Recharge';
+      case 'achat':
+        return 'Achat de crédits';
       default:
         return motif || 'Transaction';
     }

@@ -13,16 +13,28 @@ import {
   ShieldCheck,
   Coins,
   Palette,
-  Upload
+  Upload,
+  Loader2
 } from 'lucide-react';
 import type { UserProfile, AppTab } from '../types';
 import { PdfMergeTool } from './PdfMergeTool';
 import { PdfSplitTool } from './PdfSplitTool';
-import { CvGeneratorTool } from './CvGeneratorTool';
-import { LetterGeneratorTool } from './LetterGeneratorTool';
-import { InvoiceGeneratorTool } from './InvoiceGeneratorTool';
-import { FormGeneratorTool } from './FormGeneratorTool';
-import { MesModelesTool } from './MesModelesTool';
+
+const CvGeneratorTool = React.lazy(() =>
+  import('./CvGeneratorTool').then((m) => ({ default: m.CvGeneratorTool }))
+);
+const LetterGeneratorTool = React.lazy(() =>
+  import('./LetterGeneratorTool').then((m) => ({ default: m.LetterGeneratorTool }))
+);
+const InvoiceGeneratorTool = React.lazy(() =>
+  import('./InvoiceGeneratorTool').then((m) => ({ default: m.InvoiceGeneratorTool }))
+);
+const FormGeneratorTool = React.lazy(() =>
+  import('./FormGeneratorTool').then((m) => ({ default: m.FormGeneratorTool }))
+);
+const MesModelesTool = React.lazy(() =>
+  import('./MesModelesTool').then((m) => ({ default: m.MesModelesTool }))
+);
 import { BottomNav } from './BottomNav';
 import { VisoraxLogo } from './VisoraxLogo';
 
@@ -55,22 +67,30 @@ export const ToolsScreen: React.FC<ToolsScreenProps> = ({
   const [modelesFilter, setModelesFilter] = useState<'all' | 'affiche'>('all');
   const [modelesAction, setModelesAction] = useState<'list' | 'add_affiche'>('list');
 
+  const fallbackSpinner = (
+    <div className="flex-1 min-h-0 flex items-center justify-center p-8 bg-slate-50 dark:bg-slate-900">
+      <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+    </div>
+  );
+
   if (currentTool === 'modeles') {
     return (
-      <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900 select-none">
-        <MesModelesTool
-          user={user}
-          credits={credits}
-          initialFilter={modelesFilter}
-          initialAction={modelesAction}
-          onBack={() => {
-            setModelesFilter('all');
-            setModelesAction('list');
-            setCurrentTool('hub');
-          }}
-          onOpenRecharge={onOpenRecharge}
-          onCreditsChange={onCreditsChange}
-        />
+      <div className="flex-1 min-h-0 flex flex-col h-full w-full max-w-full min-w-0 box-border overflow-hidden bg-slate-50 dark:bg-slate-900 select-none">
+        <React.Suspense fallback={fallbackSpinner}>
+          <MesModelesTool
+            user={user}
+            credits={credits}
+            initialFilter={modelesFilter}
+            initialAction={modelesAction}
+            onBack={() => {
+              setModelesFilter('all');
+              setModelesAction('list');
+              setCurrentTool('hub');
+            }}
+            onOpenRecharge={onOpenRecharge}
+            onCreditsChange={onCreditsChange}
+          />
+        </React.Suspense>
         <footer className="lg:hidden shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 z-30 px-2 py-1 select-none">
           <div className="max-w-[640px] mx-auto w-full">
             <BottomNav
@@ -90,13 +110,15 @@ export const ToolsScreen: React.FC<ToolsScreenProps> = ({
   if (currentTool === 'form') {
     return (
       <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900 select-none">
-        <FormGeneratorTool
-          user={user}
-          credits={credits}
-          onBack={() => setCurrentTool('hub')}
-          onOpenRecharge={onOpenRecharge}
-          onCreditsChange={onCreditsChange}
-        />
+        <React.Suspense fallback={fallbackSpinner}>
+          <FormGeneratorTool
+            user={user}
+            credits={credits}
+            onBack={() => setCurrentTool('hub')}
+            onOpenRecharge={onOpenRecharge}
+            onCreditsChange={onCreditsChange}
+          />
+        </React.Suspense>
         <footer className="lg:hidden shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 z-30 px-2 py-1 select-none">
           <div className="max-w-[640px] mx-auto w-full">
             <BottomNav
@@ -116,13 +138,15 @@ export const ToolsScreen: React.FC<ToolsScreenProps> = ({
   if (currentTool === 'invoice') {
     return (
       <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900 select-none">
-        <InvoiceGeneratorTool
-          user={user}
-          credits={credits}
-          onBack={() => setCurrentTool('hub')}
-          onOpenRecharge={onOpenRecharge}
-          onCreditsChange={onCreditsChange}
-        />
+        <React.Suspense fallback={fallbackSpinner}>
+          <InvoiceGeneratorTool
+            user={user}
+            credits={credits}
+            onBack={() => setCurrentTool('hub')}
+            onOpenRecharge={onOpenRecharge}
+            onCreditsChange={onCreditsChange}
+          />
+        </React.Suspense>
         <footer className="lg:hidden shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 z-30 px-2 py-1 select-none">
           <div className="max-w-[640px] mx-auto w-full">
             <BottomNav
@@ -142,13 +166,15 @@ export const ToolsScreen: React.FC<ToolsScreenProps> = ({
   if (currentTool === 'cv') {
     return (
       <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900 select-none">
-        <CvGeneratorTool
-          user={user}
-          credits={credits}
-          onBack={() => setCurrentTool('hub')}
-          onOpenRecharge={onOpenRecharge}
-          onCreditsChange={onCreditsChange}
-        />
+        <React.Suspense fallback={fallbackSpinner}>
+          <CvGeneratorTool
+            user={user}
+            credits={credits}
+            onBack={() => setCurrentTool('hub')}
+            onOpenRecharge={onOpenRecharge}
+            onCreditsChange={onCreditsChange}
+          />
+        </React.Suspense>
         <footer className="lg:hidden shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 z-30 px-2 py-1 select-none">
           <div className="max-w-[640px] mx-auto w-full">
             <BottomNav
@@ -168,13 +194,15 @@ export const ToolsScreen: React.FC<ToolsScreenProps> = ({
   if (currentTool === 'lettre') {
     return (
       <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900 select-none">
-        <LetterGeneratorTool
-          user={user}
-          credits={credits}
-          onBack={() => setCurrentTool('hub')}
-          onOpenRecharge={onOpenRecharge}
-          onCreditsChange={onCreditsChange}
-        />
+        <React.Suspense fallback={fallbackSpinner}>
+          <LetterGeneratorTool
+            user={user}
+            credits={credits}
+            onBack={() => setCurrentTool('hub')}
+            onOpenRecharge={onOpenRecharge}
+            onCreditsChange={onCreditsChange}
+          />
+        </React.Suspense>
         <footer className="lg:hidden shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 z-30 px-2 py-1 select-none">
           <div className="max-w-[640px] mx-auto w-full">
             <BottomNav

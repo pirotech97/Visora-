@@ -26,7 +26,16 @@ import {
   ExternalLink,
   ShieldAlert
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import {
+  elementFeuille,
+  estPaysage,
+  nomFichier,
+  telecharger,
+  genererCanvas,
+  canvasVersPng,
+  canvasVersPdf,
+  genererWord
+} from '../lib/exportDocument';
 import type { UserProfile } from '../types';
 import type { Modele, Valeurs, Lignes, Images, Champ, Groupe } from '../lib/rendu';
 import {
@@ -142,9 +151,22 @@ export const MesModelesTool: React.FC<MesModelesToolProps> = ({
   // Onglet sur mobile pour la vue form/aperçu ('form' ou 'preview')
   const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
 
-  // État export image / pdf / partage
-  const [isExportingPng, setIsExportingPng] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
+  // État export document / pdf / docx / png / partage
+  const [exportingType, setExportingType] = useState<'pdf' | 'word' | 'png' | 'share' | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [canShareFiles, setCanShareFiles] = useState(false);
+  const isExporting = exportingType !== null;
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && typeof navigator.canShare === 'function') {
+      try {
+        const testFile = new File([''], 'test.png', { type: 'image/png' });
+        setCanShareFiles(navigator.canShare({ files: [testFile] }));
+      } catch {
+        setCanShareFiles(false);
+      }
+    }
+  }, []);
 
   // Aperçu rendu en direct
   const [liveHtml, setLiveHtml] = useState<string>('');
@@ -234,10 +256,10 @@ export const MesModelesTool: React.FC<MesModelesToolProps> = ({
 
     const updateScale = () => {
       const containerWidth = el.clientWidth || 360;
-      const padding = 24;
-      const availableW = Math.max(260, containerWidth - padding);
+      const padding = 36;
+      const availableW = Math.max(180, containerWidth - padding);
       const s = Math.min(1, availableW / a4Width);
-      setPreviewScale(Math.max(0.25, s));
+      setPreviewScale(Math.max(0.2, s));
     };
 
     updateScale();
@@ -520,7 +542,7 @@ export const MesModelesTool: React.FC<MesModelesToolProps> = ({
   };
 
   // --------------------------------------------------------------------------
-  // VALIDATION ET EXPORTATION (PNG, PDF, PARTAGE)
+  // VALIDATION ET EXPORTATION (PDF, WORD, PNG, PARTAGE, IMPRIMER)
   // --------------------------------------------------------------------------
   const validateBeforeExport = (): boolean => {
     if (!currentModele) return false;
@@ -533,111 +555,144 @@ export const MesModelesTool: React.FC<MesModelesToolProps> = ({
     return true;
   };
 
-  const handleDownloadPng = async () => {
+  const handleDownloadPdf = async () => {
     if (!validateBeforeExport()) return;
     const iframe = liveIframeRef.current;
-    if (!iframe?.contentDocument) {
-      alert("Aperçu en cours de chargement. Patiente un instant et réessaie.");
+    if (!iframe) {
+      setExportError("Ouvre d'abord l'aperçu");
       return;
     }
+    const feuille = elementFeuille(iframe);
+    if (!feuille) {
+      setExportError("Ouvre d'abord l'aperçu");
+      return;
+    }
+    if (!currentModele) return;
 
-    setIsExportingPng(true);
+    setExportError(null);
+    setExportingType('pdf');
     try {
-      const doc = iframe.contentDocument;
-      const targetEl = (doc.querySelector('.gabarit .page') ||
-        doc.querySelector('.gabarit') ||
-        doc.body) as HTMLElement;
-
-      const canvas = await html2canvas(targetEl, {
-        scale: 2,
-        backgroundColor: null,
-        useCORS: false,
-        logging: false
-      });
-
-      const dataUrl = canvas.toDataURL('image/png');
-      const slug = (currentModele?.nom || 'affiche')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `affiche-${slug || 'visora'}.png`;
-      a.click();
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const paysage = estPaysage(currentModele.css || '');
+      const canvas = await genererCanvas(feuille, html2canvas);
+      const blob = canvasVersPdf(canvas, jsPDF, paysage);
+      telecharger(blob, nomFichier(currentModele.nom, 'pdf'));
     } catch (err) {
-      console.error('Erreur export PNG:', err);
-      alert("Impossible de générer l'image PNG. Vérifie le modèle.");
+      console.error('Erreur export PDF:', err);
+      setExportError("Le fichier n'a pas pu être créé. Réessaie, ou utilise Imprimer.");
     } finally {
-      setIsExportingPng(false);
+      setExportingType(null);
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadWord = async () => {
     if (!validateBeforeExport()) return;
     const iframe = liveIframeRef.current;
+    if (!iframe) {
+      setExportError("Ouvre d'abord l'aperçu");
+      return;
+    }
+    const feuille = elementFeuille(iframe);
+    if (!feuille) {
+      setExportError("Ouvre d'abord l'aperçu");
+      return;
+    }
+    if (!currentModele) return;
+
+    setExportError(null);
+    setExportingType('word');
     try {
-      iframe?.contentWindow?.print();
-    } catch {
-      window.print();
+      const docx = await import('docx');
+      const paysage = estPaysage(currentModele.css || '');
+      const blob = await genererWord(feuille, docx, {
+        titre: currentModele.nom,
+        paysage
+      });
+      telecharger(blob, nomFichier(currentModele.nom, 'docx'));
+    } catch (err) {
+      console.error('Erreur export Word:', err);
+      setExportError("Le fichier n'a pas pu être créé. Réessaie, ou utilise Imprimer.");
+    } finally {
+      setExportingType(null);
+    }
+  };
+
+  const handleDownloadPng = async () => {
+    if (!validateBeforeExport()) return;
+    const iframe = liveIframeRef.current;
+    if (!iframe) {
+      setExportError("Ouvre d'abord l'aperçu");
+      return;
+    }
+    const feuille = elementFeuille(iframe);
+    if (!feuille) {
+      setExportError("Ouvre d'abord l'aperçu");
+      return;
+    }
+    if (!currentModele) return;
+
+    setExportError(null);
+    setExportingType('png');
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await genererCanvas(feuille, html2canvas);
+      const blob = await canvasVersPng(canvas);
+      telecharger(blob, nomFichier(currentModele.nom, 'png'));
+    } catch (err) {
+      console.error('Erreur export PNG:', err);
+      setExportError("Le fichier n'a pas pu être créé. Réessaie, ou utilise Imprimer.");
+    } finally {
+      setExportingType(null);
     }
   };
 
   const handleShare = async () => {
     if (!validateBeforeExport()) return;
     const iframe = liveIframeRef.current;
-    if (!iframe?.contentDocument) return;
+    if (!iframe) {
+      setExportError("Ouvre d'abord l'aperçu");
+      return;
+    }
+    const feuille = elementFeuille(iframe);
+    if (!feuille) {
+      setExportError("Ouvre d'abord l'aperçu");
+      return;
+    }
+    if (!currentModele) return;
 
-    setIsSharing(true);
+    setExportError(null);
+    setExportingType('share');
     try {
-      const doc = iframe.contentDocument;
-      const targetEl = (doc.querySelector('.gabarit .page') ||
-        doc.querySelector('.gabarit') ||
-        doc.body) as HTMLElement;
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await genererCanvas(feuille, html2canvas);
+      const blob = await canvasVersPng(canvas);
+      const nom = nomFichier(currentModele.nom, 'png');
+      const file = new File([blob], nom, { type: 'image/png' });
 
-      const canvas = await html2canvas(targetEl, {
-        scale: 2,
-        backgroundColor: null,
-        useCORS: false,
-        logging: false
-      });
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setIsSharing(false);
-          return;
-        }
-        const slug = (currentModele?.nom || 'affiche')
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '');
-        const file = new File([blob], `affiche-${slug || 'visora'}.png`, { type: 'image/png' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: currentModele?.nom || 'Affiche Visora',
-            text: `Voici mon affiche : ${currentModele?.nom}`
-          });
-        } else if (navigator.share) {
-          await navigator.share({
-            title: currentModele?.nom || 'Affiche Visora',
-            text: `Voici mon affiche : ${currentModele?.nom}`
-          });
-        } else {
-          // Fallback téléchargement si partage non supporté
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `affiche-${slug || 'visora'}.png`;
-          a.click();
-        }
-        setIsSharing(false);
-      }, 'image/png');
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.warn('Erreur partage:', err);
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: currentModele.nom
+        });
       }
-      setIsSharing(false);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Erreur partage:', err);
+        setExportError("Le fichier n'a pas pu être créé. Réessaie, ou utilise Imprimer.");
+      }
+    } finally {
+      setExportingType(null);
+    }
+  };
+
+  const handlePrint = () => {
+    if (!validateBeforeExport()) return;
+    const iframe = liveIframeRef.current;
+    try {
+      iframe?.contentWindow?.print();
+    } catch {
+      window.print();
     }
   };
 
@@ -692,9 +747,9 @@ export const MesModelesTool: React.FC<MesModelesToolProps> = ({
   // RENDU DU COMPOSANT
   // ==========================================================================
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900 select-none">
+    <div className="flex-1 min-h-0 flex flex-col h-full w-full max-w-full overflow-hidden min-w-0 box-border bg-slate-50 dark:bg-slate-900 select-none">
       {/* Top Header */}
-      <header className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between z-30 select-none">
+      <header className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 px-4 py-2.5 sm:py-3 flex items-center justify-between z-30 select-none w-full max-w-full min-w-0 box-border">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           <button
             type="button"
@@ -1365,108 +1420,227 @@ export const MesModelesTool: React.FC<MesModelesToolProps> = ({
           Mobile (< 1024px) : Onglets "Modifier" et "Aperçu"
           =================================================================== */}
       {view === 'form' && currentModele && (
-        <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden">
-          {/* Barre d'action supérieure avec bascule mobile et boutons d'export */}
-          <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 z-20">
-            {/* Bascule mobile : Modifier / Aperçu */}
-            <div className="flex items-center gap-1.5 lg:hidden bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setMobileTab('form')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  mobileTab === 'form'
-                    ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                Modifier
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobileTab('preview')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-                  mobileTab === 'preview'
-                    ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Aperçu</span>
-              </button>
-            </div>
+        <div className="flex-1 min-h-0 flex flex-col h-full w-full max-w-full overflow-hidden min-w-0 box-border">
+          {/* Barre d'action supérieure */}
+          <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 z-20 w-full max-w-full min-w-0 box-border">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 w-full max-w-full min-w-0">
+              {/* Ligne gauche : Titre du document + Statut + Sélecteur Modifier/Aperçu (unique, mobile & tablette) */}
+              <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate min-w-0" title={currentModele.nom}>
+                    {currentModele.nom}
+                  </h2>
+                  <span className="hidden md:inline-flex text-[11px] text-slate-400 dark:text-slate-500 shrink-0">
+                    • {isPaysage ? 'A4 Paysage' : 'A4 Portrait'}
+                  </span>
+                  <span className="hidden sm:inline-flex text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                    Gratuit
+                  </span>
+                </div>
 
-            {/* Titre ou statut */}
-            <div className="hidden lg:flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                {currentModele.nom}
-              </span>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                • {isPaysage ? 'A4 Paysage (1123 × 794)' : 'A4 Portrait (794 × 1123)'}
-              </span>
-            </div>
+                {/* Sélecteur Modifier / Aperçu : UNIQUE occurrence, visible sur mobile et tablette (< 1024px), masqué sur grand écran desktop (lg) */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shrink-0 lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab('form')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      mobileTab === 'form'
+                        ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab('preview')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+                      mobileTab === 'preview'
+                        ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Aperçu</span>
+                  </button>
+                </div>
+              </div>
 
-            {/* Boutons d'exportation */}
-            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
-              <span className="hidden sm:inline-flex text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                Gratuit
-              </span>
+              {/* Côté droit : Boutons d'exportation + texte d'aide Word */}
+              <div className="w-full sm:w-auto shrink-0 flex flex-col items-stretch sm:items-end gap-1.5 min-w-0">
+                {/* Grille 3 colonnes sur < 640px, flex en ligne à droite sur >= 640px */}
+                <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:w-auto min-w-0">
+                  {/* BOUTON 1 : PDF (Principal : brand solide, texte blanc) */}
+                  <button
+                    type="button"
+                    disabled={isExporting}
+                    onClick={handleDownloadPdf}
+                    aria-label="Télécharger en PDF"
+                    title="Télécharger en PDF"
+                    className="h-11 md:h-10 max-h-11 md:max-h-10 px-2 min-[360px]:px-3 sm:px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white border border-transparent text-sm font-semibold transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 min-w-0 shadow-xs"
+                  >
+                    {exportingType === 'pdf' ? (
+                      <>
+                        <Loader2 className="w-[18px] h-[18px] animate-spin shrink-0" />
+                        <span className="truncate">Création…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-[18px] h-[18px] shrink-0" />
+                        <span className="truncate sm:hidden">PDF</span>
+                        <span className="truncate hidden sm:inline">Télécharger en PDF</span>
+                      </>
+                    )}
+                  </button>
 
-              {/* Télécharger en image PNG (html2canvas) */}
-              <button
-                type="button"
-                disabled={isExportingPng}
-                onClick={handleDownloadPng}
-                className="py-1.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5 min-h-[38px] shadow-2xs"
-                title="Télécharger l'affiche en haute résolution PNG (x2)"
-              >
-                {isExportingPng ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Création de l'image…</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Télécharger en image (PNG)</span>
-                  </>
+                  {/* BOUTON 2 : Word (non-affiche) OU Image PNG (affiche) */}
+                  {currentModele.type !== 'affiche' ? (
+                    <button
+                      type="button"
+                      disabled={isExporting}
+                      onClick={handleDownloadWord}
+                      aria-label="Télécharger en Word (.docx)"
+                      title="Télécharger en Word (.docx)"
+                      className="h-11 md:h-10 max-h-11 md:max-h-10 px-2 min-[360px]:px-3 sm:px-3 rounded-xl bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-sm font-semibold transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 min-w-0"
+                    >
+                      {exportingType === 'word' ? (
+                        <>
+                          <Loader2 className="w-[18px] h-[18px] animate-spin shrink-0" />
+                          <span className="truncate">Création…</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-[18px] h-[18px] shrink-0" />
+                          <span className="truncate sm:hidden">Word</span>
+                          <span className="truncate hidden sm:inline">Télécharger en Word</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isExporting}
+                      onClick={handleDownloadPng}
+                      aria-label="Télécharger en image (PNG)"
+                      title="Télécharger en image (PNG)"
+                      className="h-11 md:h-10 max-h-11 md:max-h-10 px-2 min-[360px]:px-3 sm:px-3 rounded-xl bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-sm font-semibold transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 min-w-0"
+                    >
+                      {exportingType === 'png' ? (
+                        <>
+                          <Loader2 className="w-[18px] h-[18px] animate-spin shrink-0" />
+                          <span className="truncate">Création…</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-[18px] h-[18px] shrink-0" />
+                          <span className="truncate sm:hidden">Image</span>
+                          <span className="truncate hidden sm:inline">Télécharger en image</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* BOUTON 3 :
+                      - Pour document normal : Imprimer
+                      - Pour affiche : Partager (si canShareFiles) sinon Imprimer */}
+                  {currentModele.type === 'affiche' && canShareFiles ? (
+                    <button
+                      type="button"
+                      disabled={isExporting}
+                      onClick={handleShare}
+                      aria-label="Partager l'affiche"
+                      title="Partager l'affiche"
+                      className="h-11 md:h-10 max-h-11 md:max-h-10 px-2 min-[360px]:px-3 sm:px-3 rounded-xl bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-sm font-semibold transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 min-w-0"
+                    >
+                      {exportingType === 'share' ? (
+                        <>
+                          <Loader2 className="w-[18px] h-[18px] animate-spin shrink-0" />
+                          <span className="truncate">Création…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-[18px] h-[18px] shrink-0" />
+                          <span className="truncate">Partager</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isExporting}
+                      onClick={handlePrint}
+                      aria-label="Imprimer"
+                      title="Imprimer"
+                      className="h-11 md:h-10 max-h-11 md:max-h-10 px-2 min-[360px]:px-3 sm:px-3 rounded-xl bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-sm font-semibold transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 min-w-0"
+                    >
+                      <Printer className="w-[18px] h-[18px] shrink-0" />
+                      <span className="truncate">Imprimer</span>
+                    </button>
+                  )}
+
+                  {/* Pour affiche sur grand écran (>= 640px) où canShareFiles est vrai : bouton Imprimer en flex */}
+                  {currentModele.type === 'affiche' && canShareFiles && (
+                    <button
+                      type="button"
+                      disabled={isExporting}
+                      onClick={handlePrint}
+                      aria-label="Imprimer"
+                      title="Imprimer"
+                      className="hidden sm:inline-flex h-11 md:h-10 max-h-11 md:max-h-10 px-3 rounded-xl bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-sm font-semibold transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center gap-1.5 min-w-0"
+                    >
+                      <Printer className="w-[18px] h-[18px] shrink-0" />
+                      <span className="truncate">Imprimer</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Texte d'aide Word : SOUS la rangée de boutons, 12px gris, pas pour les affiches */}
+                {currentModele.type !== 'affiche' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 text-center sm:text-right w-full sm:w-auto truncate select-none leading-none pt-0.5">
+                    Word : modifiable, mise en page simplifiée. Le PDF reste la référence.
+                  </p>
                 )}
-              </button>
-
-              {/* Télécharger en PDF */}
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                className="py-1.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition cursor-pointer flex items-center gap-1.5 min-h-[38px]"
-                title="Imprimer ou enregistrer en PDF"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Télécharger en PDF</span>
-                <span className="sm:hidden">PDF</span>
-              </button>
-
-              {/* Partager */}
-              <button
-                type="button"
-                disabled={isSharing}
-                onClick={handleShare}
-                className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition cursor-pointer flex items-center gap-1.5 min-h-[38px]"
-                title="Partager l'affiche"
-              >
-                {isSharing ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Share2 className="w-3.5 h-3.5" />
-                )}
-                <span className="hidden md:inline">Partager</span>
-              </button>
+              </div>
             </div>
+
+            {/* Message d'erreur de création de fichier */}
+            {exportError && (
+              <div className="w-full mt-2 p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-xs font-semibold text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="truncate">{exportError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExportError(null)}
+                  className="p-1 hover:bg-rose-100 dark:hover:bg-rose-900/50 rounded-lg text-rose-500 cursor-pointer shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Bannière de validation si champs obligatoires manquants */}
+            {validationErrors.length > 0 && (
+              <div className="w-full mt-2 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-xs text-rose-700 dark:text-rose-300 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Remplis les champs obligatoires avant de télécharger :</span>
+                </div>
+                <ul className="list-disc list-inside space-y-0.5 pl-1 font-semibold">
+                  {validationErrors.map((errName, i) => (
+                    <li key={i}>{errName}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Corps : Colonne gauche (formulaire) et Colonne droite (aperçu en direct) */}
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden w-full max-w-full min-w-0 box-border">
             {/* Colonne Formulaire (visible sur desktop, ou sur mobile si mobileTab === 'form') */}
             <div
-              className={`flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:w-1/2 lg:border-r border-slate-200 dark:border-slate-800 ${
+              className={`flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:w-1/2 lg:border-r border-slate-200 dark:border-slate-800 w-full max-w-full min-w-0 box-border ${
                 mobileTab === 'preview' ? 'hidden lg:block' : 'block'
               }`}
             >
@@ -1737,7 +1911,7 @@ export const MesModelesTool: React.FC<MesModelesToolProps> = ({
             {/* Colonne Aperçu en Direct (visible sur desktop, ou sur mobile si mobileTab === 'preview') */}
             <div
               ref={previewContainerRef}
-              className={`flex-1 min-h-0 lg:w-1/2 bg-slate-200 dark:bg-slate-950 overflow-auto p-4 flex flex-col items-center justify-start ${
+              className={`flex-1 min-h-0 lg:w-1/2 bg-slate-200 dark:bg-slate-950 overflow-x-hidden overflow-y-auto p-4 flex flex-col items-center justify-start w-full max-w-full min-w-0 box-border ${
                 mobileTab === 'form' ? 'hidden lg:flex' : 'flex'
               }`}
             >

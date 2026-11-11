@@ -1,92 +1,71 @@
-import React, { useState } from 'react';
-import { Download, Share2, PlusSquare, X } from 'lucide-react';
-import { usePWAInstall } from '../hooks/usePWAInstall';
+import React from 'react';
+import { Download } from 'lucide-react';
+import { useInstallation } from '../hooks/useInstallation';
 
-export const PWAInstallButton: React.FC = () => {
-  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
-  const [showIOSGuide, setShowIOSGuide] = useState(false);
+interface PWAInstallButtonProps {
+  className?: string;
+  variant?: 'pill' | 'sidebar' | 'inline';
+  onClick?: () => void;
+}
 
-  // If already running in standalone mode, hide button
-  if (isInstalled) {
+export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
+  className = '',
+  variant = 'pill',
+  onClick
+}) => {
+  const { isInstallable, isInstalled, openManually } = useInstallation();
+
+  // Si l'application est déjà installée ou que le navigateur ne supporte pas l'installation
+  if (isInstalled || !isInstallable) {
     return null;
   }
 
-  if (isInstallable) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    openManually();
+    onClick?.();
+  };
+
+  if (variant === 'sidebar') {
     return (
       <button
-        onClick={install}
-        className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition active:scale-95 border border-blue-200"
-        title="Installer Visorax Studio sur votre écran d'accueil"
+        type="button"
+        onClick={handleClick}
+        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer group ${className}`}
+        title="Installer Visorax Studio sur ton appareil"
       >
-        <Download className="w-3.5 h-3.5 text-blue-600" />
-        <span>Installer</span>
+        <div className="flex items-center gap-3">
+          <Download className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+          <span>Installer l'application</span>
+        </div>
       </button>
     );
   }
 
-  if (isIOS) {
+  if (variant === 'inline') {
     return (
-      <>
-        <button
-          onClick={() => setShowIOSGuide(true)}
-          className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition active:scale-95 border border-blue-200"
-          title="Installer sur iPhone ou iPad"
-        >
-          <Download className="w-3.5 h-3.5 text-blue-600" />
-          <span>Installer</span>
-        </button>
-
-        {showIOSGuide && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in"
-          >
-            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-base font-bold text-slate-900">Installer Visorax Studio sur iPhone</h3>
-                <button
-                  onClick={() => setShowIOSGuide(false)}
-                  className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="mt-4 space-y-3 text-sm text-slate-600">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-50 rounded-lg text-blue-600 mt-0.5">
-                    <Share2 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-800">1. Appuie sur Partager</span>
-                    <p className="text-xs text-slate-500">Dans la barre de navigation Safari au bas de l'écran.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-50 rounded-lg text-blue-600 mt-0.5">
-                    <PlusSquare className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-800">2. Choisis « Sur l'écran d'accueil »</span>
-                    <p className="text-xs text-slate-500">Fais défiler la liste vers le bas puis valide « Ajouter ».</p>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowIOSGuide(false)}
-                className="mt-6 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 shadow-md transition"
-              >
-                Compris
-              </button>
-            </div>
-          </div>
-        )}
-      </>
+      <button
+        type="button"
+        onClick={handleClick}
+        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer ${className}`}
+        title="Installer Visorax Studio"
+      >
+        <Download className="w-3.5 h-3.5" />
+        <span>Installer l'application</span>
+      </button>
     );
   }
 
-  return null;
+  // Variant "pill" (défaut dans les réglages)
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className={`inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition active:scale-95 border border-blue-200 dark:border-blue-800 cursor-pointer ${className}`}
+      title="Installer Visorax Studio"
+    >
+      <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+      <span>Installer</span>
+    </button>
+  );
 };
